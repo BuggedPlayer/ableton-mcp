@@ -4,6 +4,97 @@ All notable changes to AbletonMCP Beta will be documented in this file.
 
 ---
 
+## v2.0.1 — 2026-02-09
+
+### Remote Script Fixes
+- **Thread safety**: Read-only commands now marshaled onto main thread via `schedule_message` (was running on socket thread, risking LOM access violations)
+- **Automation clamping**: Uses `parameter.min`/`parameter.max` instead of hardcoded 0.0–1.0 range
+- **Automation sampling**: Fixed off-by-one — `get_clip_automation` now returns exactly 64 points (was 65)
+- **Automation point reduction**: Server-side 3-stage pipeline (sort+dedup, collinear removal, RDP) enforces max 20 points per automation write — prevents cluttered envelopes
+- **MIDI note API**: `add_notes_to_clip` uses Live 12 `MidiNoteSpecification` API with fallback chain (dict-based → legacy `set_notes`)
+- **Loop validation**: `set_loop_end` rejects end ≤ start; `set_loop_length` and `set_song_loop` reject length ≤ 0
+- **Time range validation**: `clear_track_automation` rejects end_time ≤ start_time
+- **`group_tracks`**: Now honestly reports `grouped: false` with reason (Remote Script API limitation) instead of `grouped: true`
+- **Dead code removed**: Unused `track` variable in `create_track_automation`
+- **Audio helper extracted**: `_get_audio_clip()` replaces duplicated validation in 5 functions
+
+### M4L Bridge Fixes
+- **Concurrency guards**: `_discoverState`, `_batchState`, and `_responseSendState` now reject concurrent operations with error messages instead of silently corrupting state
+- **Error recovery**: `_discoverNextChunk` and `_sendNextResponsePiece` wrapped in try/catch — cleans up global state and unblocks future operations on failure
+- **Response queue**: Large response sends queue behind active sends and drain automatically via `_drainResponseQueue()`
+- **Simpler slice "move"**: Added missing `case "move"` to `handleSimplerSlice` with 6-arg parsing
+- **Base64 decode boundary**: Fixed `<=` to `<` comparisons preventing off-by-one in `_base64decode`
+
+### Grid Notation Fixes
+- **Flat accidental parsing**: Fixed `Bb`, `Eb` etc. — was uppercasing the entire note name including accidental
+- **Pedal hi-hat label**: Pitch 44 changed from `'HC'` to `'HP'` (was colliding with closed hi-hat)
+- **Mid tom label**: Pitch 47 changed from `'LT'` to `'MT'` (was mislabeled as low tom)
+
+### No tool count change — Total tools: **138** (unchanged)
+
+---
+
+## v2.0.0 — 2026-02-09
+
+### New: Device Chain Navigation (3 tools, requires M4L)
+- `discover_rack_chains` — discover chains, nested devices, and drum pads inside Instrument/Audio Effect/Drum Racks
+- `get_chain_device_parameters` — read all parameters of a device nested inside a rack chain
+- `set_chain_device_parameter` — set a parameter on a device nested inside a rack chain
+- LOM paths: `live_set tracks T devices D chains C devices CD`
+
+### New: Simpler / Sample Deep Access (3 tools, requires M4L)
+- `get_simpler_info` — get Simpler device state: playback mode, sample file path, markers, warp settings, slices, warp-mode-specific properties
+- `set_simpler_sample_properties` — set sample start/end markers, warping, warp mode, gain, slicing sensitivity
+- `simpler_manage_slices` — manage slices: insert at position, remove at position, clear all, reset to auto-detected
+- LOM paths: `live_set tracks T devices D sample`
+
+### New: Wavetable Modulation Matrix (3 tools, requires M4L)
+- `get_wavetable_info` — get Wavetable device state: oscillator wavetable categories/indices, modulation matrix with active modulations, voice/unison/filter settings
+- `set_wavetable_modulation` — set modulation amount in Wavetable's mod matrix (sources: Env2, Env3, LFO1, LFO2)
+- `set_wavetable_properties` — set oscillator wavetable category/index, effect modes. Voice/unison/filter properties are read-only (Ableton API limitation)
+
+### M4L Bridge v2.0.0
+- 9 new OSC commands: `/discover_chains`, `/get_chain_device_params`, `/set_chain_device_param`, `/get_simpler_info`, `/set_simpler_sample_props`, `/simpler_slice`, `/get_wavetable_info`, `/set_wavetable_modulation`, `/set_wavetable_props`
+- Generic LOM helper: `discoverParamsAtPath()` enables parameter discovery at arbitrary LOM paths (used by chain device params)
+- LiveAPI cursor reuse: `discoverChainsAtPath()` uses `LiveAPI.goto()` to reuse 3 cursor objects instead of creating ~193 per call — prevents Max `[js]` memory exhaustion on large drum racks
+- OSC packet builders: All 9 new commands have corresponding builders in `M4LConnection._build_osc_packet()`
+
+### TCP Port: Snapshot / Restore / Morph / Macros
+- `snapshot_device_state` — ported from M4L `discover_params` to TCP `get_device_parameters`. No longer requires M4L bridge.
+- `restore_device_snapshot` — ported from `_m4l_batch_set_params()` to `_tcp_batch_restore_params()` using name-based parameters. No M4L needed.
+- `snapshot_all_devices` — ported to TCP. Snapshots all devices across tracks without M4L.
+- `restore_group_snapshot` — ported to TCP.
+- `morph_between_snapshots` — ported to TCP. Now uses name-based parameter matching instead of index-based.
+- `set_macro_value` — ported to TCP. Auto-looks up parameter names from device if not cached.
+- `generate_preset` — fully rewritten to use TCP. No longer calls M4L `discover_params` (which caused timeouts and crashes).
+- New helper: `_tcp_batch_restore_params()` — restores device parameters via TCP `set_device_parameters_batch` using name-based params.
+
+### Removed Redundant Tools (-3)
+- `arm_track` — use `set_track_arm(arm=True)` instead
+- `disarm_track` — use `set_track_arm(arm=False)` instead
+- `get_return_tracks_info` — use `get_return_tracks` instead
+
+### Bug Fixes & Improvements
+- **Fixed `set_wavetable_properties` crash**: removed post-set `get()` read-back verification that crashed Ableton. Now uses fire-and-forget `set()` for oscillator properties via M4L
+- **Fixed `set_device_hidden_parameter` crash**: removed post-set `paramApi.get("value")` readback in `setHiddenParam()` — same crash pattern as the wavetable fix. Now reports clamped value instead of reading back
+- **Confirmed Wavetable voice properties read-only**: `unison_mode`, `unison_voice_count`, `filter_routing`, `mono_poly`, `poly_voices` are NOT exposed as DeviceParameters (verified against full 93-parameter list). Neither M4L `LiveAPI.set()` nor TCP `set_device_parameter` can write them — hard Ableton API limitation. `set_wavetable_properties` now returns a clear error message for these
+- **Fixed `discover_rack_chains` nested rack support**: added optional `chain_path` parameter to target devices inside chains (e.g. `"chains 0 devices 0"` for nested racks)
+- **Fixed `discover_rack_chains` crash on large drum racks**: refactored `discoverChainsAtPath` to reuse LiveAPI objects via `goto()` instead of creating ~193 new objects per call. Now uses 3 cursor objects total, preventing Max `[js]` memory exhaustion
+- **Fixed `discover_device_params` crash on large devices** (e.g. Wavetable with 93 params): two root causes found and fixed:
+  - Synchronous LiveAPI overload: >~210 `get()` calls in a single `[js]` execution crashes Ableton. Fixed by chunked async discovery (4 params/chunk with 50ms `Task.schedule()` delays)
+  - Response size through outlet/udpsend: >~8KB base64 via Max `outlet()` crashes Ableton (symbol size limit + OSC routing issues with `+` and `/` characters in standard base64). Fixed by chunked response protocol (Rev 4): JSON is split into 2KB pieces, each base64-encoded independently with URL-safe conversion (`+`→`-`, `/`→`_`), wrapped in a chunk envelope, and sent via deferred `Task.schedule()`. Python server detects chunk metadata (`_c`/`_t` keys), buffers all pieces, decodes each, and reassembles the full JSON
+- **Chunked response protocol**: M4L bridge splits large responses into multiple ~3.6KB UDP packets. Python server reassembles automatically. Small responses sent as-is (backward compatible). Key safety: never creates the full base64 string in memory, uses `.replace()` for O(n) URL-safe conversion, defers all `outlet()` calls via `Task.schedule()`
+- **Fixed `set_chain_device_parameter` crash**: removed post-set `paramApi.get("value")` readback in `handleSetChainDeviceParam()` — same crash pattern as wavetable and hidden param fixes
+- **Fixed `batch_set_hidden_parameters` LiveAPI exhaustion**: refactored `_batchProcessNextChunk()` to reuse a single cursor via `goto()` instead of creating new LiveAPI per parameter (93 objects → 1)
+- **Fixed Remote Script crash on client disconnect**: wrapped `client.sendall()` response send in try/except to handle broken connections cleanly instead of propagating the error
+- **Fixed `grid_to_clip` silent failures**: `except Exception: pass` replaced with proper error returns
+- **Fixed `generate_preset` device targeting**: improved docstring guidance to target synth, not effects
+- **Reduced bruteforce resolver logging**: removed per-iteration logging from `devices.py` — only MATCH and ERROR logged now
+- **Improved documentation**: Moved automation and extended note features from Limitations to Features — these are capabilities, not limitations. Fixed `create_clip_automation` docstring that incorrectly said "arrangement automation is not supported"
+- Total tools: 132 → **138** (+9 new, -3 removed)
+
+---
+
 ## v1.9.0 — 2026-02-09
 
 ### New: ASCII Grid Notation (2 tools)

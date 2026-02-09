@@ -115,7 +115,7 @@ m4l_status()  →  "M4L bridge connected (v2.0.0)"
 |---|---|
 | `get_simpler_info(track, device)` | Get Simpler state: playback mode, sample file, markers, warp, slices |
 | `set_simpler_sample_properties(track, device, ...)` | Set sample markers, warp mode, gain, etc. |
-| `simpler_manage_slices(track, device, action, ...)` | Insert, remove, clear, or reset slices |
+| `simpler_manage_slices(track, device, action, ...)` | Insert, remove, move, clear, or reset slices |
 
 ### Wavetable Modulation Matrix (v2.0.0)
 
@@ -158,7 +158,7 @@ m4l_status()  →  "M4L bridge connected (v2.0.0)"
 | `/set_chain_device_param` | `track_idx, device_idx, chain_idx, chain_device_idx, param_idx, value, request_id` | Set nested device param |
 | `/get_simpler_info` | `track_idx, device_idx, request_id` | Get Simpler + sample info |
 | `/set_simpler_sample_props` | `track_idx, device_idx, props_b64, request_id` | Set sample properties (base64 JSON) |
-| `/simpler_slice` | `track_idx, device_idx, action, [slice_time], request_id` | Manage slices |
+| `/simpler_slice` | `track_idx, device_idx, action, [slice_time], request_id` | Manage slices (insert/remove/move/clear/reset) |
 | `/get_wavetable_info` | `track_idx, device_idx, request_id` | Get Wavetable state + mod matrix |
 | `/set_wavetable_modulation` | `track_idx, device_idx, target_idx, source_idx, amount, request_id` | Set mod matrix amount |
 | `/set_wavetable_props` | `track_idx, device_idx, props_b64, request_id` | Set Wavetable properties (base64 JSON) |
@@ -187,6 +187,8 @@ Key safety: never creates the full base64 string in memory; `.replace()` for URL
 - **Chunked async discovery**: Large devices discovered 4 params/chunk with 50ms `Task.schedule()` delays. Prevents synchronous LiveAPI overload (>210 `get()` calls crashes Ableton).
 - **LiveAPI cursor reuse**: `discover_rack_chains` uses `goto()` to reuse 3 cursor objects instead of creating ~193 per call. Prevents Max `[js]` memory exhaustion on large drum racks.
 - **Fire-and-forget writes**: `set_device_hidden_parameter`, `set_chain_device_parameter`, and `set_wavetable_properties` do not read back after `set()`. Post-set `get("value")` readback was the #1 crash pattern.
+- **Concurrency guards**: Discovery, batch set, and response send operations reject concurrent requests instead of corrupting shared state.
+- **Error recovery**: Chunked discovery and response sending catch exceptions, clean up global state, and unblock future operations.
 
 ### Known Limitations
 - **Wavetable voice properties** (`unison_mode`, `unison_voice_count`, `filter_routing`, `mono_poly`, `poly_voices`) are read-only — not exposed as DeviceParameters, and `LiveAPI.set()` silently fails. Hard Ableton API limitation.
