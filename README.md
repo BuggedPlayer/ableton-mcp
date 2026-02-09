@@ -1,6 +1,6 @@
 # AbletonMCP
 
-**138 tools connecting Claude AI to Ableton Live**
+**160 tools connecting Claude AI to Ableton Live**
 
 AbletonMCP gives Claude direct control over your Ableton Live session through the Model Context Protocol. Create tracks, write MIDI, design sounds, mix, automate, browse instruments, snapshot presets, and navigate deep into device chains and modulation matrices — all through natural language conversation.
 
@@ -17,6 +17,8 @@ AbletonMCP gives Claude direct control over your Ableton Live session through th
 > "Build a Metro Boomin style 808 beat using grid notation"
 
 > "Set the tempo to 128 BPM, create 4 tracks, and set up a minimal techno arrangement"
+
+> "Undo the last change — I don't like how that sounds"
 
 > "Duplicate the 4-bar section at bar 9 to fill out the chorus"
 
@@ -58,6 +60,10 @@ AbletonMCP gives Claude direct control over your Ableton Live session through th
 
 > "Insert 4 bars of silence at bar 17 in the arrangement"
 
+> "Convert the drums on track 2 to MIDI and put them in a new Drum Rack"
+
+> "Mute the kick drum pad and solo the snare in the Drum Rack"
+
 > "Get arrangement clips on all tracks and give me an overview of the structure"
 
 ### Session Management
@@ -72,6 +78,10 @@ AbletonMCP gives Claude direct control over your Ableton Live session through th
 
 > "List all my snapshots and delete the ones from yesterday's session"
 
+> "Set track 3 monitoring to IN so I can hear live input"
+
+> "Store the current macro settings as a variation, then randomize"
+
 ---
 
 ## Architecture
@@ -84,20 +94,20 @@ Claude AI  <--MCP-->  MCP Server  <--TCP:9877-->  Ableton Remote Script
                           +---<--HTTP:9880-->  Web Status Dashboard
 ```
 
-- **Remote Script** (TCP) — 128 tools. Runs as a Control Surface inside Ableton. Handles tracks, clips, MIDI, mixing, automation, browser, snapshots, macros, presets.
-- **M4L Bridge** (UDP/OSC) — 10 tools. A Max for Live device that accesses hidden parameters, rack chain internals, Simpler sample data, and Wavetable modulation matrices.
+- **Remote Script** (TCP) — 147 tools. Runs as a Control Surface inside Ableton. Handles tracks, clips, MIDI, mixing, automation, browser, snapshots, macros, presets, drum pads, rack variations, grooves, and audio-to-MIDI conversion.
+- **M4L Bridge** (UDP/OSC) — 13 tools. A Max for Live device that accesses hidden parameters, rack chain internals, Simpler sample data, and Wavetable modulation matrices.
 - **Web Dashboard** — real-time status, tool call metrics, and server logs at `http://127.0.0.1:9880`.
 
 ---
 
-## Tools by Category (138 Total)
+## Tools by Category (160 Total)
 
 | Category | Count | Channel |
 |---|---|---|
-| Session & Transport | 7 | TCP |
-| Track Management | 10 | TCP |
+| Session & Transport | 16 | TCP |
+| Track Management | 14 | TCP |
 | Track Mixing | 6 | TCP |
-| Clip Management | 14 | TCP |
+| Clip Management | 19 | TCP |
 | MIDI Notes | 8 | TCP |
 | Automation | 4 | TCP |
 | ASCII Grid Notation | 2 | TCP |
@@ -105,10 +115,10 @@ Claude AI  <--MCP-->  MCP Server  <--TCP:9877-->  Ableton Remote Script
 | Arrangement Editing | 7 | TCP |
 | Audio Clips | 7 | TCP |
 | MIDI & Performance | 3 | TCP |
-| Scenes | 5 | TCP |
+| Scenes | 6 | TCP |
 | Return Tracks | 6 | TCP |
 | Master Track | 2 | TCP |
-| Devices & Parameters | 4 | TCP |
+| Devices & Parameters | 10 | TCP |
 | Browser & Loading | 9 | TCP |
 | Snapshot & Versioning | 9 | TCP |
 | Preset Morph | 1 | TCP |
@@ -116,11 +126,8 @@ Claude AI  <--MCP-->  MCP Server  <--TCP:9877-->  Ableton Remote Script
 | Preset Generator | 1 | TCP |
 | Parameter Mapper | 4 | TCP |
 | Rack Presets | 1 | TCP |
-| M4L: Hidden Parameters | 6 | UDP/OSC |
-| M4L: Device Chain Navigation | 3 | UDP/OSC |
-| M4L: Simpler / Sample Access | 3 | UDP/OSC |
-| M4L: Wavetable Modulation | 3 | UDP/OSC |
-| **Total** | **138** | |
+| Deep Device Access | 10 | UDP/OSC |
+| **Total** | **160** | |
 
 ---
 
@@ -155,8 +162,8 @@ AbletonMCP is built to handle real-world sessions without crashing Ableton. Ever
 ## Flexibility
 
 - **Works with any MCP client** — Claude Desktop, Cursor, or any tool that speaks the Model Context Protocol
-- **128 tools without Max for Live** — the TCP Remote Script covers tracks, clips, MIDI, mixing, automation, browser, snapshots, macros, and presets. M4L is optional.
-- **+10 deep-access tools with M4L** — hidden parameters, rack chain internals, Simpler samples, Wavetable modulation
+- **147 tools without Max for Live** — the TCP Remote Script covers tracks, clips, MIDI, mixing, automation, browser, snapshots, macros, presets, drum pads, rack variations, grooves, and audio-to-MIDI conversion. M4L is optional.
+- **+13 deep-access tools with M4L** — hidden parameters, rack chain internals, Simpler samples, Wavetable modulation
 - **Web dashboard** — live monitoring of connection status, tool calls, and server logs at port 9880
 - **Ableton Live 10, 11, and 12** — graceful API fallbacks for version-specific features (extended notes, capture MIDI, arrangement placement)
 - **Cross-platform** — Windows and macOS
@@ -166,4 +173,4 @@ AbletonMCP is built to handle real-world sessions without crashing Ableton. Ever
 
 ## Version
 
-**v2.0.0** — see [CHANGELOG.md](CHANGELOG.md) for full release history.
+**v2.0.2** — see [CHANGELOG.md](CHANGELOG.md) for full release history.

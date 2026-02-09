@@ -4,6 +4,56 @@ All notable changes to AbletonMCP Beta will be documented in this file.
 
 ---
 
+## v2.0.2 — 2026-02-10
+
+### New: Session & Transport (9 tools)
+- `undo` / `redo` — undo/redo the last action (with `can_undo`/`can_redo` safety checks)
+- `continue_playing` — resume playback from current position (instead of from start)
+- `re_enable_automation` — re-enable all manually overridden automation
+- `get_cue_points` — get all arrangement cue point markers (name + time)
+- `set_or_delete_cue` — toggle a cue point at the current playback position
+- `jump_to_cue` — jump to the next or previous cue point
+- `get_groove_pool` — read global groove amount and all groove parameters
+- `set_groove_settings` — set global groove amount or individual groove timing/quantization/random/velocity
+
+### New: Track Tools (4 tools)
+- `get_track_routing` — get input/output routing and available routing options
+- `set_track_routing` — set input/output routing by display name (enables side-chain, resampling)
+- `set_track_monitoring` — set monitoring state (IN / AUTO / OFF)
+- `create_midi_track_with_simpler` — load audio clip into Simpler on a new MIDI track (Live 12+)
+
+### New: Clip Tools (5 tools)
+- `set_clip_pitch` — set pitch transposition (coarse semitones + fine cents) for audio clips
+- `set_clip_launch_mode` — set launch mode (trigger / gate / toggle / repeat)
+- `set_clip_launch_quantization` — per-clip launch quantization override (none through 1/32, or global)
+- `set_clip_legato` — enable/disable legato mode (seamless clip transitions)
+- `audio_to_midi` — convert audio to MIDI using drums/harmony/melody algorithms (Live 12+)
+
+### New: Scene Tools (1 tool)
+- `set_scene_tempo` — set or clear per-scene tempo override (0 clears, 20-999 sets)
+
+### New: Device Tools (6 tools)
+- `get_drum_pads` — read all drum pad info (note, name, mute, solo) from a Drum Rack
+- `set_drum_pad` — mute/solo individual drum pads by MIDI note number
+- `copy_drum_pad` — copy pad contents from one note to another
+- `get_rack_variations` — read macro variation count, selected index, mapping status
+- `rack_variation_action` — store/recall/delete macro variations, randomize macros
+- `sliced_simpler_to_drum_rack` — convert sliced Simpler to Drum Rack (Live 12+)
+
+### Remote Script Fixes
+- **`set_scene_tempo`**: Simplified to use `scene.tempo` API directly — 0 clears, 20-999 sets
+- **Variable cleanup**: `l` → `length_val` in `set_song_loop`; added `pos` in `set_loop_end`; removed double-logging in 3 session handlers
+- **`stop_arrangement_recording`**: Added optional `stop_playback` parameter
+
+### M4L Bridge Fixes
+- **Response interleaving**: Small responses now queue behind active chunked sends
+- **`_batchProcessNextChunk`**: Wrapped in try/catch matching sibling functions
+- **ES5 compat**: Reverted `let` to `var` in case "move" for Max's JS engine
+
+### Total tools: 138 → **160** (+25 new, -3 already removed in v2.0.0)
+
+---
+
 ## v2.0.1 — 2026-02-09
 
 ### Remote Script Fixes
