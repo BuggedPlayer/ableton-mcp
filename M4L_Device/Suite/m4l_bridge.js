@@ -302,10 +302,7 @@ function handleGetAutomationStates(args) {
     var devicePath = "live_set tracks " + trackIdx + " devices " + deviceIdx;
     var deviceApi = new LiveAPI(null, devicePath);
 
-    if (!deviceApi || !deviceApi.id || parseInt(deviceApi.id) === 0) {
-        sendError("No device at track " + trackIdx + " device " + deviceIdx, requestId);
-        return;
-    }
+    if (!_validateApi(deviceApi, requestId, "No device at track " + trackIdx + " device " + deviceIdx)) return;
 
     var deviceName = "";
     try { deviceName = deviceApi.get("name").toString(); } catch (e) {}
@@ -421,14 +418,14 @@ function _startChunkedDiscover(trackIdx, deviceIdx, requestId) {
 
 function _startChunkedDiscoverAtPath(devicePath, requestId) {
     if (_discoverState) {
-        sendResult({ error: "Discovery busy - try again shortly" }, requestId);
+        sendError("Discovery busy - try again shortly", requestId);
         return;
     }
 
     var cursor = new LiveAPI(null, devicePath);
 
     if (!cursor || !cursor.id || parseInt(cursor.id) === 0) {
-        sendResult({ error: "No device found at path: " + devicePath }, requestId);
+        sendError("No device found at path: " + devicePath, requestId);
         return;
     }
 
@@ -527,11 +524,8 @@ function handleBatchSetHiddenParams(args) {
     // args.  Reassemble: everything between the two int args and the last
     // arg (request_id) is the base64 payload.
     var requestId = args[args.length - 1].toString();
-    var b64Parts = [];
-    for (var a = 2; a < args.length - 1; a++) {
-        b64Parts.push(args[a].toString());
-    }
-    var paramsB64 = b64Parts.join("");
+    var paramsB64 = _reassembleB64(args, 2);
+    if (!paramsB64) { sendError("Missing payload data", requestId); return; }
 
     post("batch_set: args.length=" + args.length + " b64len=" + paramsB64.length + "\n");
 
@@ -561,10 +555,7 @@ function handleBatchSetHiddenParams(args) {
     var devicePath = "live_set tracks " + trackIdx + " devices " + deviceIdx;
     var deviceApi  = new LiveAPI(null, devicePath);
 
-    if (!deviceApi || !deviceApi.id || parseInt(deviceApi.id) === 0) {
-        sendError("No device found at track " + trackIdx + " device " + deviceIdx, requestId);
-        return;
-    }
+    if (!_validateApi(deviceApi, requestId, "No device found at track " + trackIdx + " device " + deviceIdx)) return;
 
     // Filter out parameter index 0 ("Device On") to avoid accidentally
     // disabling the device — a common cause of unexpected behavior.
@@ -684,7 +675,7 @@ function handleCheckDashboard(args) {
         status: "success",
         result: {
             dashboard_url: "http://127.0.0.1:9880",
-            bridge_version: "3.2.0",
+            bridge_version: "3.6.0",
             message: "Open the dashboard URL in your browser to view server status"
         },
         id: requestId
@@ -980,10 +971,7 @@ function handleGetSimplerInfo(args) {
     var devicePath = "live_set tracks " + trackIdx + " devices " + deviceIdx;
     var deviceApi  = new LiveAPI(null, devicePath);
 
-    if (!deviceApi || !deviceApi.id || parseInt(deviceApi.id) === 0) {
-        sendError("No device found at track " + trackIdx + " device " + deviceIdx, requestId);
-        return;
-    }
+    if (!_validateApi(deviceApi, requestId, "No device found at track " + trackIdx + " device " + deviceIdx)) return;
 
     var className = "";
     try { className = deviceApi.get("class_name").toString(); } catch (e) {}
@@ -1092,11 +1080,8 @@ function handleSetSimplerSampleProps(args) {
     var requestId = args[args.length - 1].toString();
 
     // Reassemble b64 payload (Max may split long strings)
-    var b64Parts = [];
-    for (var a = 2; a < args.length - 1; a++) {
-        b64Parts.push(args[a].toString());
-    }
-    var propsB64 = b64Parts.join("");
+    var propsB64 = _reassembleB64(args, 2);
+    if (!propsB64) { sendError("Missing payload data", requestId); return; }
 
     var propsJson;
     try { propsJson = _base64decode(propsB64); } catch (e) {
@@ -1263,10 +1248,7 @@ function handleGetWavetableInfo(args) {
     var devicePath = "live_set tracks " + trackIdx + " devices " + deviceIdx;
     var deviceApi  = new LiveAPI(null, devicePath);
 
-    if (!deviceApi || !deviceApi.id || parseInt(deviceApi.id) === 0) {
-        sendError("No device found at track " + trackIdx + " device " + deviceIdx, requestId);
-        return;
-    }
+    if (!_validateApi(deviceApi, requestId, "No device found at track " + trackIdx + " device " + deviceIdx)) return;
 
     var className = "";
     try { className = deviceApi.get("class_name").toString(); } catch (e) {}
@@ -1368,10 +1350,7 @@ function handleSetWavetableModulation(args) {
     var devicePath = "live_set tracks " + trackIdx + " devices " + deviceIdx;
     var deviceApi  = new LiveAPI(null, devicePath);
 
-    if (!deviceApi || !deviceApi.id || parseInt(deviceApi.id) === 0) {
-        sendError("No device found", requestId);
-        return;
-    }
+    if (!_validateApi(deviceApi, requestId, "No device found")) return;
 
     try {
         deviceApi.call("set_modulation_value", targetIdx, sourceIdx, amount);
@@ -1402,11 +1381,8 @@ function handleSetWavetableProps(args) {
     var deviceIdx = parseInt(args[1]);
     var requestId = args[args.length - 1].toString();
 
-    var b64Parts = [];
-    for (var a = 2; a < args.length - 1; a++) {
-        b64Parts.push(args[a].toString());
-    }
-    var propsB64 = b64Parts.join("");
+    var propsB64 = _reassembleB64(args, 2);
+    if (!propsB64) { sendError("Missing payload data", requestId); return; }
 
     var propsJson;
     try { propsJson = _base64decode(propsB64); } catch (e) {
@@ -1422,23 +1398,20 @@ function handleSetWavetableProps(args) {
     var devicePath = "live_set tracks " + trackIdx + " devices " + deviceIdx;
     var deviceApi  = new LiveAPI(null, devicePath);
 
-    if (!deviceApi || !deviceApi.id || parseInt(deviceApi.id) === 0) {
-        sendError("No device found", requestId);
-        return;
-    }
+    if (!_validateApi(deviceApi, requestId, "No device found")) return;
 
     // Tier 1: Oscillator properties — reliably settable via LiveAPI.set()
-    var tier1 = [
-        "oscillator_1_effect_mode", "oscillator_2_effect_mode",
-        "oscillator_1_wavetable_category", "oscillator_1_wavetable_index",
-        "oscillator_2_wavetable_category", "oscillator_2_wavetable_index"
-    ];
+    var tier1Map = {
+        "oscillator_1_effect_mode": true, "oscillator_2_effect_mode": true,
+        "oscillator_1_wavetable_category": true, "oscillator_1_wavetable_index": true,
+        "oscillator_2_wavetable_category": true, "oscillator_2_wavetable_index": true
+    };
     // Tier 2: Voice/unison/filter properties — these are handled by the MCP
     // server via TCP (set_device_parameter). LiveAPI.set() silently fails for these.
-    var tier2 = [
-        "filter_routing", "mono_poly", "poly_voices",
-        "unison_mode", "unison_voice_count"
-    ];
+    var tier2Map = {
+        "filter_routing": true, "mono_poly": true, "poly_voices": true,
+        "unison_mode": true, "unison_voice_count": true
+    };
 
     var setCount = 0;
     var errors = [];
@@ -1446,16 +1419,9 @@ function handleSetWavetableProps(args) {
     for (var key in props) {
         if (!props.hasOwnProperty(key)) continue;
 
-        // Check which tier
-        var isTier1 = false, isTier2 = false;
-        for (var s = 0; s < tier1.length; s++) {
-            if (tier1[s] === key) { isTier1 = true; break; }
-        }
-        if (!isTier1) {
-            for (var s2 = 0; s2 < tier2.length; s2++) {
-                if (tier2[s2] === key) { isTier2 = true; break; }
-            }
-        }
+        // Check which tier (O(1) lookup)
+        var isTier1 = !!tier1Map[key];
+        var isTier2 = !isTier1 && !!tier2Map[key];
         if (!isTier1 && !isTier2) {
             errors.push({ property: key, error: "not a settable property" });
             continue;
@@ -1504,10 +1470,7 @@ function handleProbeDeviceInfo(args) {
     var devicePath = "live_set tracks " + trackIdx + " devices " + deviceIdx;
     var deviceApi  = new LiveAPI(null, devicePath);
 
-    if (!deviceApi || !deviceApi.id || parseInt(deviceApi.id) === 0) {
-        sendError("No device found at track " + trackIdx + " device " + deviceIdx, requestId);
-        return;
-    }
+    if (!_validateApi(deviceApi, requestId, "No device found at track " + trackIdx + " device " + deviceIdx)) return;
 
     var result = {};
 
@@ -1904,54 +1867,51 @@ function handleGetChainMixing(args) {
         try { result.mute = (parseInt(chainApi.get("mute")) === 1); } catch (e) {}
         try { result.solo = (parseInt(chainApi.get("solo")) === 1); } catch (e) {}
 
-        // Navigate to mixer_device
+        // Navigate to mixer_device using a single reusable cursor
         var mixerPath = chainPath + " mixer_device";
-        var mixerApi = new LiveAPI(null, mixerPath);
+        var cursor = new LiveAPI(null, mixerPath);
 
-        if (mixerApi && mixerApi.id && parseInt(mixerApi.id) !== 0) {
+        if (cursor && cursor.id && parseInt(cursor.id) !== 0) {
+            var sendCount = 0;
+            try { sendCount = parseInt(cursor.getcount("sends")); } catch (e) {}
+
             // Volume
-            var volPath = mixerPath + " volume";
-            var volApi = new LiveAPI(null, volPath);
-            if (volApi && volApi.id && parseInt(volApi.id) !== 0) {
+            cursor.goto(mixerPath + " volume");
+            if (cursor.id && parseInt(cursor.id) !== 0) {
                 result.volume = {};
-                try { result.volume.value = parseFloat(volApi.get("value")); } catch (e) {}
-                try { result.volume.min = parseFloat(volApi.get("min")); } catch (e) {}
-                try { result.volume.max = parseFloat(volApi.get("max")); } catch (e) {}
-                try { result.volume.name = volApi.get("name").toString(); } catch (e) {}
+                try { result.volume.value = parseFloat(cursor.get("value")); } catch (e) {}
+                try { result.volume.min = parseFloat(cursor.get("min")); } catch (e) {}
+                try { result.volume.max = parseFloat(cursor.get("max")); } catch (e) {}
+                try { result.volume.name = cursor.get("name").toString(); } catch (e) {}
             }
 
             // Panning
-            var panPath = mixerPath + " panning";
-            var panApi = new LiveAPI(null, panPath);
-            if (panApi && panApi.id && parseInt(panApi.id) !== 0) {
+            cursor.goto(mixerPath + " panning");
+            if (cursor.id && parseInt(cursor.id) !== 0) {
                 result.panning = {};
-                try { result.panning.value = parseFloat(panApi.get("value")); } catch (e) {}
-                try { result.panning.min = parseFloat(panApi.get("min")); } catch (e) {}
-                try { result.panning.max = parseFloat(panApi.get("max")); } catch (e) {}
+                try { result.panning.value = parseFloat(cursor.get("value")); } catch (e) {}
+                try { result.panning.min = parseFloat(cursor.get("min")); } catch (e) {}
+                try { result.panning.max = parseFloat(cursor.get("max")); } catch (e) {}
             }
 
             // Chain activator (mute toggle via device parameter)
-            var actPath = mixerPath + " chain_activator";
-            var actApi = new LiveAPI(null, actPath);
-            if (actApi && actApi.id && parseInt(actApi.id) !== 0) {
+            cursor.goto(mixerPath + " chain_activator");
+            if (cursor.id && parseInt(cursor.id) !== 0) {
                 result.chain_activator = {};
-                try { result.chain_activator.value = parseFloat(actApi.get("value")); } catch (e) {}
+                try { result.chain_activator.value = parseFloat(cursor.get("value")); } catch (e) {}
             }
 
             // Sends
-            var sendCount = 0;
-            try { sendCount = parseInt(mixerApi.getcount("sends")); } catch (e) {}
             if (sendCount > 0) {
                 var sends = [];
-                var sendCursor = new LiveAPI(null, mixerPath);
                 for (var s = 0; s < sendCount; s++) {
-                    sendCursor.goto(mixerPath + " sends " + s);
-                    if (!sendCursor.id || parseInt(sendCursor.id) === 0) continue;
+                    cursor.goto(mixerPath + " sends " + s);
+                    if (!cursor.id || parseInt(cursor.id) === 0) continue;
                     var sendInfo = { index: s };
-                    try { sendInfo.value = parseFloat(sendCursor.get("value")); } catch (e) {}
-                    try { sendInfo.min = parseFloat(sendCursor.get("min")); } catch (e) {}
-                    try { sendInfo.max = parseFloat(sendCursor.get("max")); } catch (e) {}
-                    try { sendInfo.name = sendCursor.get("name").toString(); } catch (e) {}
+                    try { sendInfo.value = parseFloat(cursor.get("value")); } catch (e) {}
+                    try { sendInfo.min = parseFloat(cursor.get("min")); } catch (e) {}
+                    try { sendInfo.max = parseFloat(cursor.get("max")); } catch (e) {}
+                    try { sendInfo.name = cursor.get("name").toString(); } catch (e) {}
                     sends.push(sendInfo);
                 }
                 result.sends = sends;
@@ -2075,10 +2035,7 @@ function handleDeviceAbCompare(args) {
 
     var devicePath = "live_set tracks " + trackIdx + " devices " + deviceIdx;
     var deviceApi = new LiveAPI(null, devicePath);
-    if (!deviceApi || !deviceApi.id || parseInt(deviceApi.id) === 0) {
-        sendError("No device at track " + trackIdx + " device " + deviceIdx, requestId);
-        return;
-    }
+    if (!_validateApi(deviceApi, requestId, "No device at track " + trackIdx + " device " + deviceIdx)) return;
 
     try {
         // Check if AB comparison is supported
@@ -2260,6 +2217,26 @@ function handleSetSplitStereo(args) {
     } catch (e) {
         sendError("Failed to set split stereo: " + e.toString(), requestId);
     }
+}
+
+// ---------------------------------------------------------------------------
+// Shared validation & utility helpers
+// ---------------------------------------------------------------------------
+
+function _validateApi(api, requestId, msg) {
+    if (!api || !api.id || parseInt(api.id) === 0) {
+        sendError(msg || "No device found", requestId);
+        return false;
+    }
+    return true;
+}
+
+function _reassembleB64(args, startIdx) {
+    var parts = [];
+    for (var a = startIdx; a < args.length - 1; a++) {
+        parts.push(args[a].toString());
+    }
+    return parts.length > 0 ? parts.join("") : null;
 }
 
 // ---------------------------------------------------------------------------
@@ -2738,11 +2715,8 @@ function handleSetGrooveProperties(args) {
     var requestId = args[args.length - 1].toString();
 
     // Reassemble b64 payload (Max may split long strings)
-    var b64Parts = [];
-    for (var a = 1; a < args.length - 1; a++) {
-        b64Parts.push(args[a].toString());
-    }
-    var propsB64 = b64Parts.join("");
+    var propsB64 = _reassembleB64(args, 1);
+    if (!propsB64) { sendError("Missing payload data", requestId); return; }
 
     var propsJson;
     try { propsJson = _base64decode(propsB64); } catch (e) {
@@ -2825,11 +2799,9 @@ function handleObserveProperty(args) {
         // Create a LiveAPI with a callback function
         var obs = {
             changes: [],
+            dropped: 0,
             api: null
         };
-
-        // The callback function that fires on property changes
-        var callbackName = "_observerCallback_" + Object.keys(_observers).length;
 
         // Store observer state before creating the API
         _observers[key] = obs;
@@ -2845,6 +2817,7 @@ function handleObserveProperty(args) {
                 };
                 if (obs.changes.length >= MAX_OBSERVER_CHANGES) {
                     obs.changes.shift();
+                    obs.dropped++;
                 }
                 obs.changes.push(entry);
             }
@@ -2912,21 +2885,30 @@ function handleGetObservedChanges(args) {
     var allChanges = {};
     var totalChanges = 0;
 
+    var totalDropped = 0;
     for (var key in _observers) {
         if (!_observers.hasOwnProperty(key)) continue;
         var obs = _observers[key];
-        if (obs.changes.length > 0) {
+        if (obs.changes.length > 0 || obs.dropped > 0) {
             allChanges[key] = obs.changes.slice(); // copy
             totalChanges += obs.changes.length;
+            if (obs.dropped > 0) {
+                totalDropped += obs.dropped;
+            }
             obs.changes = []; // clear after reading
+            obs.dropped = 0; // reset dropped counter
         }
     }
 
-    sendResult({
+    var result = {
         total_changes: totalChanges,
         observer_count: Object.keys(_observers).length,
         changes: allChanges
-    }, requestId);
+    };
+    if (totalDropped > 0) {
+        result.total_dropped = totalDropped;
+    }
+    sendResult(result, requestId);
 }
 
 // ---------------------------------------------------------------------------

@@ -41,20 +41,34 @@ def _normalize_display(s):
     return "".join(s.split()).lower()
 
 
+MAX_BRUTEFORCE_STEPS = 10000
+
+
 def _resolve_display_value_bruteforce(param, display_string, ctrl=None):
     """For non-quantized params, find the raw value that produces a display string.
 
     Iterates integer values in [min..max], checks param.str_for_value(v).
     Works for params like LFO Rate (0-21) where each integer = a note value.
     Uses aggressive normalization (strip all whitespace) for robust matching.
+    Capped at MAX_BRUTEFORCE_STEPS iterations to prevent UI stalls.
     """
     target_norm = _normalize_display(display_string)
 
     lo = int(param.min)
     hi = int(param.max)
+    span = hi - lo + 1
+
     if ctrl:
-        ctrl.log_message("Bruteforce resolve '{0}' (norm: '{1}') for '{2}' (range {3}-{4})".format(
-            display_string, target_norm, param.name, lo, hi))
+        ctrl.log_message("Bruteforce resolve '{0}' (norm: '{1}') for '{2}' (range {3}-{4}, span {5})".format(
+            display_string, target_norm, param.name, lo, hi, span))
+
+    capped = False
+    if span > MAX_BRUTEFORCE_STEPS:
+        capped = True
+        hi = lo + MAX_BRUTEFORCE_STEPS - 1
+        if ctrl:
+            ctrl.log_message("  Capped search to {0} steps (original span: {1})".format(
+                MAX_BRUTEFORCE_STEPS, span))
 
     for v in range(lo, hi + 1):
         try:
@@ -71,9 +85,11 @@ def _resolve_display_value_bruteforce(param, display_string, ctrl=None):
                 ctrl.log_message("  v={0} -> ERROR: {1}".format(v, e))
             continue
 
-    raise ValueError("'{0}' not matched for '{1}' (range {2}-{3})".format(
-        display_string, param.name, param.min, param.max
-    ))
+    msg = "'{0}' not matched for '{1}' (range {2}-{3})".format(
+        display_string, param.name, param.min, param.max)
+    if capped:
+        msg += " (search capped at {0} steps out of {1})".format(MAX_BRUTEFORCE_STEPS, span)
+    raise ValueError(msg)
 
 
 def _resolve_display_value(param, display_string, ctrl=None):

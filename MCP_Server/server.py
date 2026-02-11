@@ -1286,7 +1286,8 @@ def _get_browser_cache() -> List[Dict[str, Any]]:
         if _browser_cache_flat and (time.time() - _browser_cache_timestamp) < _BROWSER_CACHE_TTL:
             return _browser_cache_flat
     _populate_browser_cache()
-    return _browser_cache_flat
+    with _browser_cache_lock:
+        return _browser_cache_flat
 
 
 # ---------------------------------------------------------------------------
@@ -2120,7 +2121,10 @@ def add_notes_to_clip(
 ) -> str:
     """
     Add MIDI notes to a clip.
-    
+
+    Standard note adding. Use add_notes_extended when you need to set
+    probability or velocity deviation (Live 11+).
+
     Parameters:
     - track_index: The index of the track containing the clip
     - clip_index: The index of the clip slot containing the clip
@@ -2184,6 +2188,10 @@ def get_clip_notes(ctx: Context, track_index: int, clip_index: int,
     """
     Get MIDI notes from a clip.
 
+    Basic note reading without note IDs. For probability/velocity deviation
+    data, use get_notes_extended. For in-place editing with stable note IDs,
+    use get_clip_notes_with_ids (requires M4L bridge).
+
     Parameters:
     - track_index: The index of the track containing the clip
     - clip_index: The index of the clip slot containing the clip
@@ -2231,6 +2239,10 @@ def load_instrument_or_effect(ctx: Context, track_index: int, uri: str) -> str:
     """
     Load an instrument or effect onto a track using its URI or device name.
 
+    General-purpose device loader. Works for instruments, audio effects, MIDI
+    effects, and presets. For native-only devices on Live 12.3+,
+    insert_device_by_name is faster.
+
     Parameters:
     - track_index: The index of the track to load the instrument on
     - uri: The URI of the instrument/effect, OR a device name (resolved automatically).
@@ -2274,8 +2286,9 @@ def load_instrument_or_effect(ctx: Context, track_index: int, uri: str) -> str:
 @_tool_handler("firing clip")
 def fire_clip(ctx: Context, track_index: int, clip_index: int) -> str:
     """
-    Start playing a clip.
-    
+    Launch a clip in Session View. The clip starts from its beginning (or loop
+    start). For arrangement playback, use start_playback instead.
+
     Parameters:
     - track_index: The index of the track containing the clip
     - clip_index: The index of the clip slot containing the clip
@@ -2293,8 +2306,9 @@ def fire_clip(ctx: Context, track_index: int, clip_index: int) -> str:
 @_tool_handler("stopping clip")
 def stop_clip(ctx: Context, track_index: int, clip_index: int) -> str:
     """
-    Stop playing a clip.
-    
+    Stop a clip in Session View. For stopping all playback, use stop_playback
+    instead.
+
     Parameters:
     - track_index: The index of the track containing the clip
     - clip_index: The index of the clip slot containing the clip
@@ -2311,7 +2325,8 @@ def stop_clip(ctx: Context, track_index: int, clip_index: int) -> str:
 @mcp.tool()
 @_tool_handler("starting playback")
 def start_playback(ctx: Context) -> str:
-    """Start playing the Ableton session."""
+    """Start playing from the play position marker (like pressing Play). To resume
+    from the current playhead without jumping, use continue_playing instead."""
     ableton = get_ableton_connection()
     result = ableton.send_command("start_playback")
     return "Started playback"
@@ -2613,7 +2628,10 @@ def set_clip_looping(ctx: Context, track_index: int, clip_index: int, looping: b
 def set_clip_loop_points(ctx: Context, track_index: int, clip_index: int,
                           loop_start: float, loop_end: float) -> str:
     """
-    Set the loop start and end points of a clip.
+    Set the LOOP region start and end points of a clip.
+
+    Sets the loop boundaries (the region that repeats when looping is enabled).
+    Different from set_clip_start_end which sets playback start/end markers.
 
     Parameters:
     - track_index: The index of the track containing the clip
@@ -2993,6 +3011,10 @@ def set_device_parameter(ctx: Context, track_index: int, device_index: int,
     """
     Set a device parameter value.
 
+    Use for a single standard parameter change. For multiple params at once,
+    use set_device_parameters instead. For hidden/non-automatable params, use
+    set_device_hidden_parameter (requires M4L bridge).
+
     Parameters:
     - track_index: The index of the track containing the device
     - device_index: The index of the device on the track
@@ -3096,7 +3118,9 @@ def realtime_batch_set_parameters(ctx: Context, track_index: int, device_index: 
     """
     Set multiple device parameters at once via UDP for real-time control (fire-and-forget).
 
-    Use this for rapid batch parameter updates where response confirmation is not needed.
+    Use for rapid multi-param changes (e.g., morphing presets in real-time).
+    No response confirmation — fire-and-forget. For confirmed batch updates,
+    use set_device_parameters instead.
 
     Parameters:
     - track_index: The index of the track containing the device
@@ -3167,7 +3191,10 @@ def load_sample(ctx: Context, track_index: int, sample_uri: str) -> str:
 @_tool_handler("creating clip automation")
 def create_clip_automation(ctx: Context, track_index: int, clip_index: int,
                             parameter_name: str, automation_points: List[Dict[str, float]]) -> str:
-    """Create automation for a parameter within a clip.
+    """Create automation for a parameter within a session clip.
+
+    For automation inside a session clip's envelope. For arrangement-level track
+    automation (Volume, Pan, etc. on the timeline), use create_track_automation instead.
 
     Parameters:
     - track_index: The index of the track
@@ -3329,6 +3356,9 @@ def set_clip_start_end(ctx: Context, track_index: int, clip_index: int,
     """
     Set clip start_marker and end_marker positions (controls playback region without changing notes).
 
+    Sets the playback START/END markers, which are separate from the loop region.
+    Different from set_clip_loop_points which sets the loop boundaries.
+
     Parameters:
     - track_index: The index of the track containing the clip
     - clip_index: The index of the clip slot containing the clip
@@ -3356,6 +3386,9 @@ def add_notes_extended(ctx: Context, track_index: int, clip_index: int,
                        notes: List[Dict]) -> str:
     """
     Add MIDI notes with Live 11+ extended properties.
+
+    Use instead of add_notes_to_clip when you need to set probability,
+    velocity_deviation, or release_velocity on notes.
 
     Parameters:
     - track_index: The index of the track containing the clip
@@ -3388,6 +3421,10 @@ def get_notes_extended(ctx: Context, track_index: int, clip_index: int,
                        start_time: float = 0.0, time_span: float = 0.0) -> str:
     """
     Get MIDI notes with Live 11+ extended properties (probability, velocity_deviation, release_velocity).
+
+    Use instead of get_clip_notes when you need probability, velocity_deviation,
+    or release_velocity data. Does not include stable note IDs — for that, use
+    get_clip_notes_with_ids (requires M4L bridge).
 
     Parameters:
     - track_index: The index of the track containing the clip
@@ -3590,6 +3627,9 @@ def load_drum_kit(ctx: Context, track_index: int, rack_uri: str, kit_path: str) 
     """
     Load a drum rack and then load a specific drum kit into it.
 
+    Specialized two-step loader: creates a Drum Rack then loads a kit into it.
+    For loading individual instruments, use load_instrument_or_effect instead.
+
     Parameters:
     - track_index: The index of the track to load on
     - rack_uri: The URI of the drum rack to load (e.g., 'Drums/Drum Rack')
@@ -3652,6 +3692,10 @@ def m4l_status(ctx: Context) -> str:
 def discover_device_params(ctx: Context, track_index: int, device_index: int) -> str:
     """Discover ALL parameters for a device including hidden/non-automatable ones.
 
+    Use to LIST parameter indices and names — needed before calling set_device_hidden_parameter
+    or batch_set_hidden_parameters. To READ current parameter values instead, use
+    get_device_hidden_parameters.
+
     Uses the M4L bridge to enumerate every parameter exposed by the Live Object Model,
     which typically includes parameters not visible through the standard Remote Script API.
     Works with any Ableton device (Operator, Wavetable, Simpler, Analog, Drift, etc.).
@@ -3677,6 +3721,9 @@ def discover_device_params(ctx: Context, track_index: int, device_index: int) ->
 @_tool_handler("getting hidden device parameters")
 def get_device_hidden_parameters(ctx: Context, track_index: int, device_index: int) -> str:
     """Get ALL parameters for a device including hidden/non-automatable ones.
+
+    Use to READ current parameter values (including hidden ones). To get parameter
+    indices for setting values, use discover_device_params instead.
 
     This is similar to get_device_parameters() but uses the M4L bridge to access
     the full Live Object Model parameter tree, which exposes parameters that the
@@ -3725,7 +3772,8 @@ def set_device_hidden_parameter(
 ) -> str:
     """Set a device parameter by its LOM index, including hidden/non-automatable ones.
 
-    Use discover_device_params() first to find the parameter index you want to change.
+    Only for hidden/non-automatable params not accessible via the standard
+    set_device_parameter. Use discover_device_params() first to find parameter indices.
     The value will be clamped to the parameter's valid range.
     Works with any Ableton device.
 
@@ -4214,8 +4262,9 @@ def batch_set_hidden_parameters(
 ) -> str:
     """Set multiple device parameters at once by their LOM indices (including hidden ones).
 
-    Much faster than calling set_device_hidden_parameter() in a loop —
-    all parameters are set in a single round-trip to the M4L bridge.
+    Only for hidden/non-automatable params. For standard visible params, use
+    set_device_parameters instead. Much faster than calling
+    set_device_hidden_parameter() in a loop — single round-trip to the M4L bridge.
 
     Parameters:
     - track_index: The index of the track containing the device
@@ -4234,7 +4283,7 @@ def batch_set_hidden_parameters(
 
     # Filter out parameter index 0 ("Device On") to prevent accidentally
     # disabling the device — a common source of issues.
-    safe_params = [p for p in parameters if int(p.get("index", 0)) != 0]
+    safe_params = [p for p in parameters if "index" in p and int(p["index"]) != 0]
     skipped = len(parameters) - len(safe_params)
 
     for i, p in enumerate(safe_params):
@@ -6546,6 +6595,9 @@ def create_track_automation(
 ) -> str:
     """Create automation for a track parameter (arrangement-level).
 
+    For arrangement-level automation on the timeline. For automation within a
+    session clip's envelope, use create_clip_automation instead.
+
     Parameters:
     - track_index: The index of the track
     - parameter_name: Name of the parameter to automate (e.g., "Volume", "Pan")
@@ -7731,7 +7783,8 @@ def insert_device_by_name(ctx: Context, track_index: int,
                            device_name: str,
                            target_index: int = None) -> str:
     """Insert a native Live device by name into a track's device chain.
-    Only native devices are supported (not M4L or plugins). Available since Live 12.3.
+    Faster than load_instrument_or_effect but native devices only (not plugins
+    or M4L). Available since Live 12.3.
 
     Parameters:
     - track_index: Track to insert device into

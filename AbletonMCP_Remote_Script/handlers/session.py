@@ -26,8 +26,14 @@ def get_session_info(song, ctrl=None):
 
 
 def set_tempo(song, tempo, ctrl=None):
-    """Set the tempo of the session."""
+    """Set the tempo of the session (20.0-999.0 BPM)."""
     try:
+        tempo = float(tempo)
+        if tempo < 20.0 or tempo > 999.0:
+            msg = "Tempo must be between 20.0 and 999.0 BPM, got {0}".format(tempo)
+            if ctrl:
+                ctrl.log_message(msg)
+            raise ValueError(msg)
         song.tempo = tempo
         return {"tempo": song.tempo}
     except Exception as e:
