@@ -146,12 +146,7 @@ def get_notes_extended(song, track_index, clip_index, start_time, time_span, ctr
         # Try Live 11+ get_notes_extended
         if hasattr(clip, 'get_notes_extended'):
             try:
-                raw_notes = clip.get_notes_extended(
-                    from_time=start_time,
-                    from_pitch=0,
-                    time_span=actual_time_span,
-                    pitch_span=128,
-                )
+                raw_notes = clip.get_notes_extended(0, 128, start_time, actual_time_span)
                 notes = []
                 for note in raw_notes:
                     note_dict = {
@@ -175,8 +170,9 @@ def get_notes_extended(song, track_index, clip_index, start_time, time_span, ctr
                     "extended": True,
                     "notes": notes,
                 }
-            except Exception:
-                pass  # Fall through to legacy
+            except Exception as exc:
+                if ctrl:
+                    ctrl.log_message("get_notes_extended failed, using legacy: " + str(exc))
 
         # Legacy fallback
         notes_tuple = clip.get_notes(start_time, 0, actual_time_span, 128)
@@ -213,12 +209,7 @@ def remove_notes_range(song, track_index, clip_index, from_time, time_span, from
         count_before = len(before)
 
         if hasattr(clip, 'remove_notes_extended'):
-            clip.remove_notes_extended(
-                from_time=from_time,
-                from_pitch=from_pitch,
-                time_span=actual_time_span,
-                pitch_span=pitch_span,
-            )
+            clip.remove_notes_extended(from_pitch, pitch_span, from_time, actual_time_span)
         else:
             clip.remove_notes(from_time, from_pitch, actual_time_span, pitch_span)
 
@@ -247,7 +238,7 @@ def clear_clip_notes(song, track_index, clip_index, ctrl=None):
 
         # Remove all notes -- try Live 11+ API first, fall back to legacy
         if hasattr(clip, 'remove_notes_extended'):
-            clip.remove_notes_extended(from_time=0, from_pitch=0, time_span=clip.length, pitch_span=128)
+            clip.remove_notes_extended(0, 128, 0, clip.length)
         else:
             clip.remove_notes(0, 0, clip.length, 128)
 
@@ -292,8 +283,7 @@ def quantize_clip_notes(song, track_index, clip_index, grid_size, ctrl=None):
             # probability, velocity_deviation, release_velocity (Live 11+)
             used_extended = False
             if hasattr(clip, 'get_notes_extended') and hasattr(clip, 'apply_note_modifications'):
-                raw_notes = clip.get_notes_extended(
-                    from_time=0, from_pitch=0, time_span=clip.length, pitch_span=128)
+                raw_notes = clip.get_notes_extended(0, 128, 0, clip.length)
                 try:
                     for note in raw_notes:
                         old_time = note.start_time if hasattr(note, 'start_time') else note[1]
@@ -316,7 +306,7 @@ def quantize_clip_notes(song, track_index, clip_index, grid_size, ctrl=None):
                     quantized_notes.append((pitch, quantized_time, duration, velocity, mute))
 
                 if hasattr(clip, 'remove_notes_extended'):
-                    clip.remove_notes_extended(from_time=0, from_pitch=0, time_span=clip.length, pitch_span=128)
+                    clip.remove_notes_extended(0, 128, 0, clip.length)
                 else:
                     clip.remove_notes(0, 0, clip.length, 128)
                 clip.set_notes(tuple(quantized_notes))
@@ -344,8 +334,7 @@ def transpose_clip_notes(song, track_index, clip_index, semitones, ctrl=None):
         # Prefer extended API to preserve probability/velocity_deviation/release_velocity
         used_extended = False
         if hasattr(clip, 'get_notes_extended') and hasattr(clip, 'apply_note_modifications'):
-            raw_notes = clip.get_notes_extended(
-                from_time=0, from_pitch=0, time_span=clip.length, pitch_span=128)
+            raw_notes = clip.get_notes_extended(0, 128, 0, clip.length)
             try:
                 for note in raw_notes:
                     old_pitch = note.pitch if hasattr(note, 'pitch') else note[0]
@@ -368,7 +357,7 @@ def transpose_clip_notes(song, track_index, clip_index, semitones, ctrl=None):
                 transposed_notes.append((new_pitch, start_time, duration, velocity, mute))
 
             if hasattr(clip, 'remove_notes_extended'):
-                clip.remove_notes_extended(from_time=0, from_pitch=0, time_span=clip.length, pitch_span=128)
+                clip.remove_notes_extended(0, 128, 0, clip.length)
             else:
                 clip.remove_notes(0, 0, clip.length, 128)
             clip.set_notes(tuple(transposed_notes))

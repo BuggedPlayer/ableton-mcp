@@ -208,9 +208,13 @@ def freeze_track(song, track_index, ctrl=None):
             raise ValueError(
                 "Track '{0}' cannot be frozen (may be a return/master track or have no devices)".format(track.name))
 
-        raise NotImplementedError(
-            "Track freezing is not available via the Live Object Model API. "
-            "Use Ableton's Edit menu or right-click the track header to freeze.")
+        return {
+            "track_index": track_index,
+            "frozen": False,
+            "track_name": track.name,
+            "message": "Track freezing is not available via the Live Object Model API. "
+                       "Use Ableton's Edit menu or right-click the track header to freeze.",
+        }
     except Exception as e:
         if ctrl:
             ctrl.log_message("Error freezing track: " + str(e))
@@ -232,9 +236,13 @@ def unfreeze_track(song, track_index, ctrl=None):
                 "message": "Track is not frozen",
             }
 
-        raise NotImplementedError(
-            "Track unfreezing is not available via the Live Object Model API. "
-            "Use Ableton's Edit menu or right-click the track header to unfreeze.")
+        return {
+            "track_index": track_index,
+            "frozen": True,
+            "track_name": track.name,
+            "message": "Track unfreezing is not available via the Live Object Model API. "
+                       "Use Ableton's Edit menu or right-click the track header to unfreeze.",
+        }
     except Exception as e:
         if ctrl:
             ctrl.log_message("Error unfreezing track: " + str(e))

@@ -30,10 +30,8 @@ def set_tempo(song, tempo, ctrl=None):
     try:
         tempo = float(tempo)
         if tempo < 20.0 or tempo > 999.0:
-            msg = "Tempo must be between 20.0 and 999.0 BPM, got {0}".format(tempo)
-            if ctrl:
-                ctrl.log_message(msg)
-            raise ValueError(msg)
+            raise ValueError(
+                "Tempo must be between 20.0 and 999.0 BPM, got {0}".format(tempo))
         song.tempo = tempo
         return {"tempo": song.tempo}
     except Exception as e:

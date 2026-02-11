@@ -14,6 +14,9 @@ def create_clip(song, track_index, clip_index, length, ctrl=None):
         clip_slot = track.clip_slots[clip_index]
         if clip_slot.has_clip:
             raise Exception("Clip slot already has a clip")
+        length = float(length)
+        if length <= 0:
+            raise ValueError("Clip length must be positive, got {0}".format(length))
         clip_slot.create_clip(length)
         return {
             "name": clip_slot.clip.name,
@@ -79,7 +82,7 @@ def add_notes_to_clip(song, track_index, clip_index, notes, ctrl=None):
         for s in note_specs:
             live_notes.append((s["pitch"], s["start_time"], s["duration"], int(s["velocity"]), s["mute"]))
         clip.set_notes(tuple(live_notes))
-        return {"note_count": len(live_notes)}
+        return {"note_count": len(notes)}
     except Exception as e:
         if ctrl:
             ctrl.log_message("Error adding notes to clip: " + str(e))
