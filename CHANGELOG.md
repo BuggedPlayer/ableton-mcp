@@ -4,6 +4,70 @@ All notable changes to AbletonMCP Beta will be documented in this file.
 
 ---
 
+## v2.7.0 — 2026-02-10
+
+### New Features: 19 new tools + 5 extended existing tools
+
+Cross-referenced the Live Object Model (Max 9), Python API stubs, and Live 12.4 release notes to identify and implement all missing API coverage.
+
+#### Scale & Root Note — Harmonic Awareness (2 tools)
+- `get_song_scale` — read root_note (0-11), scale_name, scale_mode, scale_intervals
+- `set_song_scale` — set root_note, scale_name, scale_mode for harmonically-correct AI composition
+
+#### Punch In/Out Recording (extended existing tools)
+- `set_punch_recording` — control punch_in, punch_out, count_in_duration
+- Extended `get_song_transport` with punch_in, punch_out, count_in_duration, is_counting_in
+
+#### Clip Playing Status (1 new tool + extended existing)
+- `get_playing_clips` — scan all tracks for currently playing/triggered clips with positions
+- Extended `get_clip_info` with is_triggered, playing_position, launch_mode, velocity_amount, legato
+
+#### Selection State (1 tool)
+- `get_selection_state` — read currently selected track, scene, clip, device, parameter, draw_mode, follow_song
+
+#### Additional Song Properties (extended existing)
+- Extended `get_song_settings` with tempo_follower_enabled, exclusive_arm, exclusive_solo, session_automation_record, song_length
+- Extended `set_song_settings` with session_automation_record
+
+#### Link Sync Status (2 tools)
+- `get_link_status` — read link_enabled, start_stop_sync_enabled
+- `set_link_enabled` — enable/disable Ableton Link and start/stop sync
+
+#### Track Group Info (extended existing)
+- Extended `get_track_info` with is_grouped, group_track_index, is_visible, is_showing_chains, can_show_chains, playing_slot_index, fired_slot_index
+
+#### Application View Management (3 tools)
+- `get_view_state` — check visibility of all views (Browser, Session, Arranger, Detail, etc.)
+- `set_view` — show/hide/focus views, toggle browser
+- `zoom_scroll_view` — zoom/scroll any view with direction and modifier support
+
+#### Warp Markers (4 tools)
+- `get_warp_markers` — read all warp markers (beat_time + sample_time) for a clip
+- `add_warp_marker` — add warp marker at beat_time/sample_time position
+- `move_warp_marker` — move existing warp marker by index
+- `remove_warp_marker` — remove warp marker by index
+
+#### Tuning System (1 tool)
+- `get_tuning_system` — read microtonal tuning: name, pseudo_octave_in_cents, reference_pitch, note_tunings
+
+#### Insert Device by Name (1 tool, Live 12.3+)
+- `insert_device_by_name` — insert native Live devices by name at a position in device chain (faster than browser-based loading)
+
+#### Looper Device Control (1 tool)
+- `control_looper` — specialized Looper device control: record, overdub, play, stop, clear, undo, double_speed, half_speed, double_length, half_length, export to clip slot
+
+#### Take Lanes / Comping (2 tools)
+- `get_take_lanes` — read all take lanes and their clips for arrangement comping
+- `create_take_lane` — create new take lane on a track
+
+### Fixes
+- **fix**: `set_punch_recording` — `count_in_duration` is read-only in Remote Script API (Python stubs say "Get" not "Get/Set"). Wrapped in try/except so `punch_in`/`punch_out` still work; returns warning note if count_in_duration fails
+- **fix**: `get_tuning_system` — crashed on `ts.name` when no custom tuning active (default 12-TET returns uninitialized object). Now all properties individually guarded with sensible defaults ("Equal Temperament", 1200.0 cents). Added `lowest_note`/`highest_note` from LOM
+
+### Total tools: 197 → **216** (+19) + **19 optional** (ElevenLabs) = **235 total**
+
+---
+
 ## v2.6.1 — 2026-02-10
 
 ### Fixes

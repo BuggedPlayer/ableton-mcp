@@ -70,6 +70,49 @@ def get_track_info(song, track_index, ctrl=None):
         except Exception:
             is_midi = False
 
+        # Group relationships
+        try:
+            is_grouped = track.is_grouped
+        except Exception:
+            is_grouped = False
+
+        group_track_index = None
+        if is_grouped:
+            try:
+                gt = track.group_track
+                if gt:
+                    for i, t in enumerate(song.tracks):
+                        if t == gt:
+                            group_track_index = i
+                            break
+            except Exception:
+                pass
+
+        try:
+            is_visible = track.is_visible
+        except Exception:
+            is_visible = True
+
+        try:
+            is_showing_chains = track.is_showing_chains
+        except Exception:
+            is_showing_chains = False
+
+        try:
+            can_show_chains = track.can_show_chains
+        except Exception:
+            can_show_chains = False
+
+        try:
+            playing_slot_index = track.playing_slot_index
+        except Exception:
+            playing_slot_index = -1
+
+        try:
+            fired_slot_index = track.fired_slot_index
+        except Exception:
+            fired_slot_index = -1
+
         result = {
             "index": track_index,
             "name": track.name,
@@ -81,6 +124,13 @@ def get_track_info(song, track_index, ctrl=None):
             "arm": arm,
             "volume": track.mixer_device.volume.value,
             "panning": track.mixer_device.panning.value,
+            "is_grouped": is_grouped,
+            "group_track_index": group_track_index,
+            "is_visible": is_visible,
+            "is_showing_chains": is_showing_chains,
+            "can_show_chains": can_show_chains,
+            "playing_slot_index": playing_slot_index,
+            "fired_slot_index": fired_slot_index,
             "clip_slots": clip_slots,
             "devices": devices_list,
         }
@@ -429,6 +479,72 @@ def create_midi_track_with_simpler(song, track_index, clip_index, ctrl=None):
         raise
 
 
+def get_track_meters(song, track_index=None, ctrl=None):
+    """Get live output meter levels and playing slot info for one or all tracks."""
+    try:
+        tracks_data = []
+        if track_index is not None:
+            if track_index < 0 or track_index >= len(song.tracks):
+                raise IndexError("Track index out of range")
+            indices = [track_index]
+        else:
+            indices = range(len(song.tracks))
+        for i in indices:
+            track = song.tracks[i]
+            info = {
+                "index": i,
+                "name": track.name,
+            }
+            try:
+                info["output_meter_left"] = round(track.output_meter_left, 4)
+                info["output_meter_right"] = round(track.output_meter_right, 4)
+            except Exception:
+                try:
+                    info["output_meter_level"] = round(track.output_meter_level, 4)
+                except Exception:
+                    info["output_meter_level"] = None
+            try:
+                info["playing_slot_index"] = track.playing_slot_index
+            except Exception:
+                info["playing_slot_index"] = -1
+            try:
+                info["fired_slot_index"] = track.fired_slot_index
+            except Exception:
+                info["fired_slot_index"] = -1
+            tracks_data.append(info)
+        if track_index is not None:
+            return tracks_data[0]
+        return {"tracks": tracks_data, "count": len(tracks_data)}
+    except Exception as e:
+        if ctrl:
+            ctrl.log_message("Error getting track meters: " + str(e))
+        raise
+
+
+def set_track_fold(song, track_index, fold_state, ctrl=None):
+    """Collapse or expand a group track.
+
+    Args:
+        fold_state: True to fold (collapse), False to unfold (expand).
+    """
+    try:
+        if track_index < 0 or track_index >= len(song.tracks):
+            raise IndexError("Track index out of range")
+        track = song.tracks[track_index]
+        if not track.is_foldable:
+            raise Exception("Track '{0}' is not a group track (not foldable)".format(track.name))
+        track.fold_state = bool(fold_state)
+        return {
+            "track_index": track_index,
+            "track_name": track.name,
+            "fold_state": track.fold_state,
+        }
+    except Exception as e:
+        if ctrl:
+            ctrl.log_message("Error setting track fold: " + str(e))
+        raise
+
+
 def set_track_routing(song, track_index, input_type=None, input_channel=None,
                       output_type=None, output_channel=None, ctrl=None):
     """Set track input/output routing by display name.
@@ -482,4 +598,97 @@ def set_track_routing(song, track_index, input_type=None, input_channel=None,
     except Exception as e:
         if ctrl:
             ctrl.log_message("Error setting track routing: " + str(e))
+        raise
+
+
+# --- Take Lanes ---
+
+
+def get_take_lanes(song, track_index, ctrl=None):
+    """Get take lanes for a track (used for comping in Arrangement)."""
+    try:
+        if track_index < 0 or track_index >= len(song.tracks):
+            raise IndexError("Track index out of range")
+        track = song.tracks[track_index]
+        lanes = []
+        try:
+            for i, lane in enumerate(track.take_lanes):
+                clips = []
+                try:
+                    for clip in lane.arrangement_clips:
+                        clips.append({
+                            "name": clip.name,
+                            "start_time": clip.start_time,
+                            "length": clip.length,
+                        })
+                except Exception:
+                    pass
+                lanes.append({
+                    "index": i,
+                    "name": lane.name,
+                    "clip_count": len(clips),
+                    "clips": clips,
+                })
+        except Exception:
+            pass
+        return {
+            "track_index": track_index,
+            "track_name": track.name,
+            "take_lanes": lanes,
+            "count": len(lanes),
+        }
+    except Exception as e:
+        if ctrl:
+            ctrl.log_message("Error getting take lanes: " + str(e))
+        raise
+
+
+def create_take_lane(song, track_index, ctrl=None):
+    """Create a new take lane for a track."""
+    try:
+        if track_index < 0 or track_index >= len(song.tracks):
+            raise IndexError("Track index out of range")
+        track = song.tracks[track_index]
+        track.create_take_lane()
+        lane_count = len(list(track.take_lanes))
+        return {
+            "created": True,
+            "track_index": track_index,
+            "take_lane_count": lane_count,
+        }
+    except Exception as e:
+        if ctrl:
+            ctrl.log_message("Error creating take lane: " + str(e))
+        raise
+
+
+# --- Insert Device by Name (Live 12.3+) ---
+
+
+def insert_device(song, track_index, device_name, target_index=None, ctrl=None):
+    """Insert a native Live device by name into a track's device chain.
+
+    Args:
+        track_index: Track to insert device into.
+        device_name: Name of the device as shown in Live's UI.
+        target_index: Position in the device chain (None = end of chain).
+    Note: Only native Live devices are supported. M4L and plugins are not.
+    """
+    try:
+        if track_index < 0 or track_index >= len(song.tracks):
+            raise IndexError("Track index out of range")
+        track = song.tracks[track_index]
+        if target_index is not None:
+            track.insert_device(str(device_name), int(target_index))
+        else:
+            track.insert_device(str(device_name))
+        return {
+            "inserted": True,
+            "device_name": device_name,
+            "track_index": track_index,
+            "track_name": track.name,
+        }
+    except Exception as e:
+        if ctrl:
+            ctrl.log_message("Error inserting device: " + str(e))
         raise

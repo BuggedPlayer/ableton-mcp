@@ -18,6 +18,7 @@ from . import handlers
 
 # Constants for socket communication
 DEFAULT_PORT = 9877
+UDP_REALTIME_PORT = 9882
 HOST = "localhost"
 
 # -----------------------------------------------------------------------
@@ -40,12 +41,16 @@ MODIFYING_COMMANDS = {
     "set_or_delete_cue", "jump_to_cue", "set_groove_settings",
     "set_song_settings", "trigger_session_record", "navigate_playback",
     "select_scene", "select_track", "set_detail_clip",
+    "set_song_scale", "set_punch", "set_link_enabled",
+    "set_view", "zoom_scroll_view",
     # tracks
     "create_midi_track", "create_audio_track", "create_return_track",
     "set_track_name", "delete_track", "duplicate_track",
     "set_track_color", "arm_track", "disarm_track", "group_tracks",
     "set_track_routing", "set_track_monitoring",
     "create_midi_track_with_simpler",
+    "set_track_fold",
+    "create_take_lane", "insert_device",
     # clips
     "create_clip", "add_notes_to_clip", "set_clip_name",
     "fire_clip", "stop_clip", "delete_clip",
@@ -53,12 +58,14 @@ MODIFYING_COMMANDS = {
     "set_clip_color", "crop_clip", "duplicate_clip_loop", "set_clip_start_end",
     "set_clip_pitch", "set_clip_launch_mode",
     "set_clip_launch_quantization", "set_clip_legato", "audio_to_midi",
+    "duplicate_clip_region", "move_clip_playing_pos", "set_clip_grid",
     # mixer
     "set_track_volume", "set_track_pan", "set_track_mute", "set_track_solo",
     "set_track_arm", "set_track_send",
     "set_return_track_volume", "set_return_track_pan",
     "set_return_track_mute", "set_return_track_solo",
     "set_master_volume",
+    "set_crossfade_assign",
     # scenes
     "create_scene", "delete_scene", "duplicate_scene",
     "fire_scene", "set_scene_name", "set_scene_tempo",
@@ -68,8 +75,10 @@ MODIFYING_COMMANDS = {
     "rack_variation_action", "sliced_simpler_to_drum_rack",
     "set_compressor_sidechain", "set_eq8_properties", "set_hybrid_reverb_ir",
     "set_transmute_properties",
+    "set_simpler_properties", "simpler_sample_action", "manage_sample_slices",
     # browser
     "load_browser_item", "load_instrument_or_effect", "load_sample",
+    "preview_browser_item",
     # midi
     "add_notes_extended", "remove_notes_range", "clear_clip_notes",
     "quantize_clip_notes", "transpose_clip_notes",
@@ -83,6 +92,10 @@ MODIFYING_COMMANDS = {
     # audio
     "set_warp_mode", "set_clip_warp", "reverse_clip",
     "freeze_track", "unfreeze_track",
+    # warp markers
+    "add_warp_marker", "move_warp_marker", "remove_warp_marker",
+    # looper
+    "control_looper",
 }
 
 READ_ONLY_COMMANDS = {
@@ -91,9 +104,14 @@ READ_ONLY_COMMANDS = {
     "get_loop_info", "get_recording_status",
     "get_cue_points", "get_groove_pool",
     "get_song_settings",
+    "get_song_scale", "get_selection_state",
+    "get_link_status", "get_tuning_system",
+    "get_view_state", "get_playing_clips",
     # tracks
     "get_track_info", "get_all_tracks_info", "get_return_tracks_info",
     "get_track_routing",
+    "get_track_meters",
+    "get_take_lanes",
     # clips
     "get_clip_info",
     # mixer
@@ -104,6 +122,7 @@ READ_ONLY_COMMANDS = {
     "get_drum_pads", "get_rack_variations",
     "get_compressor_sidechain", "get_eq8_properties", "get_hybrid_reverb_ir",
     "get_transmute_properties",
+    "get_simpler_properties",
     # browser
     "get_browser_item", "get_browser_tree", "get_browser_items_at_path",
     "search_browser", "get_user_library", "get_user_folders",
@@ -113,6 +132,7 @@ READ_ONLY_COMMANDS = {
     "get_clip_automation", "list_clip_automated_params",
     # audio
     "get_audio_clip_info", "analyze_audio_clip",
+    "get_warp_markers",
     # arrangement
     "get_arrangement_clips",
 }
@@ -138,13 +158,18 @@ class AbletonMCP(ControlSurface):
         self.server_thread = None
         self.running = False
 
-        # Start the socket server
+        # UDP real-time parameter server
+        self.udp_sock = None
+        self.udp_thread = None
+
+        # Start the socket servers
         self.start_server()
+        self.start_udp_server()
 
         self.log_message("AbletonMCP Beta initialized")
 
         # Show a message in Ableton
-        self.show_message("AbletonMCP Beta: Listening on port " + str(DEFAULT_PORT))
+        self.show_message("AbletonMCP Beta: TCP " + str(DEFAULT_PORT) + " / UDP " + str(UDP_REALTIME_PORT))
 
     @property
     def _song(self):
@@ -188,6 +213,17 @@ class AbletonMCP(ControlSurface):
             if client_thread.is_alive():
                 client_thread.join(3.0)
 
+        # Close UDP socket
+        if self.udp_sock:
+            try:
+                self.udp_sock.close()
+            except (OSError, socket.error):
+                pass
+            self.udp_sock = None
+
+        if self.udp_thread and self.udp_thread.is_alive():
+            self.udp_thread.join(3.0)
+
         ControlSurface.disconnect(self)
         self.log_message("AbletonMCP Beta disconnected")
 
@@ -208,6 +244,88 @@ class AbletonMCP(ControlSurface):
         except Exception as e:
             self.log_message("Error starting server: " + str(e))
             self.show_message("AbletonMCP Beta: Error starting server - " + str(e))
+
+    def start_udp_server(self):
+        """Start the UDP real-time parameter server in a separate thread."""
+        try:
+            self.udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            self.udp_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            self.udp_sock.bind((HOST, UDP_REALTIME_PORT))
+            self.udp_sock.settimeout(1.0)
+
+            self.udp_thread = threading.Thread(target=self._udp_server_loop)
+            self.udp_thread.daemon = True
+            self.udp_thread.start()
+
+            self.log_message("UDP real-time server started on port " + str(UDP_REALTIME_PORT))
+        except Exception as e:
+            self.log_message("Error starting UDP server: " + str(e))
+
+    def _udp_server_loop(self):
+        """UDP server loop - receives fire-and-forget parameter updates."""
+        while self.running:
+            try:
+                data, addr = self.udp_sock.recvfrom(4096)
+                if not data:
+                    continue
+
+                try:
+                    command = json.loads(data.decode("utf-8"))
+                except (ValueError, UnicodeDecodeError):
+                    continue
+
+                self._process_udp_command(command)
+
+            except socket.timeout:
+                continue
+            except Exception as e:
+                if self.running:
+                    self.log_message("UDP server error: " + str(e))
+                time.sleep(0.1)
+
+    def _process_udp_command(self, command):
+        """Process a UDP command. Fire-and-forget - no response sent."""
+        cmd = command.get("type", "")
+        params = command.get("params", {})
+        song = self._song
+        ctrl = self
+
+        if cmd == "set_device_parameter":
+            def task():
+                try:
+                    handlers.devices.set_device_parameter(
+                        song,
+                        params.get("track_index", 0),
+                        params.get("device_index", 0),
+                        params.get("parameter_name", ""),
+                        params.get("value", 0.0),
+                        params.get("track_type", "track"),
+                        ctrl=ctrl,
+                    )
+                except Exception as e:
+                    self.log_message("UDP set_device_parameter error: " + str(e))
+            try:
+                self.schedule_message(0, task)
+            except AssertionError:
+                task()
+
+        elif cmd == "batch_set_device_parameters":
+            def task():
+                try:
+                    handlers.devices.set_device_parameters_batch(
+                        song,
+                        params.get("track_index", 0),
+                        params.get("device_index", 0),
+                        params.get("parameters", []),
+                        params.get("track_type", "track"),
+                        ctrl=ctrl,
+                    )
+                except Exception as e:
+                    self.log_message("UDP batch_set error: " + str(e))
+            try:
+                self.schedule_message(0, task)
+            except AssertionError:
+                task()
 
     def _server_thread(self):
         """Server thread implementation - handles client connections"""
@@ -461,7 +579,8 @@ class AbletonMCP(ControlSurface):
                 song, p.get("signature_numerator"), p.get("signature_denominator"),
                 p.get("swing_amount"), p.get("clip_trigger_quantization"),
                 p.get("midi_recording_quantization"), p.get("back_to_arranger"),
-                p.get("follow_song"), p.get("draw_mode"), ctrl)
+                p.get("follow_song"), p.get("draw_mode"),
+                p.get("session_automation_record"), ctrl)
         elif cmd == "trigger_session_record":
             return handlers.session.trigger_session_record(song, p.get("record_length"), ctrl)
         elif cmd == "navigate_playback":
@@ -472,6 +591,22 @@ class AbletonMCP(ControlSurface):
             return handlers.session.select_track(song, p.get("track_index", 0), p.get("track_type", "track"), ctrl)
         elif cmd == "set_detail_clip":
             return handlers.session.set_detail_clip(song, p.get("track_index", 0), p.get("clip_index", 0), ctrl)
+        elif cmd == "set_song_scale":
+            return handlers.session.set_song_scale(
+                song, p.get("root_note"), p.get("scale_name"), p.get("scale_mode"), ctrl)
+        elif cmd == "set_punch":
+            return handlers.session.set_punch(
+                song, p.get("punch_in"), p.get("punch_out"), p.get("count_in_duration"), ctrl)
+        elif cmd == "set_link_enabled":
+            return handlers.session.set_link_enabled(
+                song, p.get("enabled"), p.get("start_stop_sync"), ctrl)
+        elif cmd == "set_view":
+            return handlers.session.set_view(
+                song, p.get("action", "show"), p.get("view_name", ""), ctrl)
+        elif cmd == "zoom_scroll_view":
+            return handlers.session.zoom_scroll_view(
+                song, p.get("action", "scroll"), p.get("direction", 0),
+                p.get("view_name", ""), p.get("modifier_pressed", False), ctrl)
 
         # --- Tracks ---
         elif cmd == "create_midi_track":
@@ -503,6 +638,14 @@ class AbletonMCP(ControlSurface):
             return handlers.tracks.set_track_monitoring(song, p.get("track_index", 0), p.get("state", 1), ctrl)
         elif cmd == "create_midi_track_with_simpler":
             return handlers.tracks.create_midi_track_with_simpler(song, p.get("track_index", 0), p.get("clip_index", 0), ctrl)
+        elif cmd == "set_track_fold":
+            return handlers.tracks.set_track_fold(song, p.get("track_index", 0), p.get("fold_state", True), ctrl)
+        elif cmd == "create_take_lane":
+            return handlers.tracks.create_take_lane(song, p.get("track_index", 0), ctrl)
+        elif cmd == "insert_device":
+            return handlers.tracks.insert_device(
+                song, p.get("track_index", 0), p.get("device_name", ""),
+                p.get("target_index"), ctrl)
 
         # --- Clips ---
         elif cmd == "create_clip":
@@ -541,6 +684,20 @@ class AbletonMCP(ControlSurface):
             return handlers.clips.set_clip_legato(song, p.get("track_index", 0), p.get("clip_index", 0), p.get("legato", False), ctrl)
         elif cmd == "audio_to_midi":
             return handlers.clips.audio_to_midi(song, p.get("track_index", 0), p.get("clip_index", 0), p.get("conversion_type", "melody"), ctrl)
+        elif cmd == "duplicate_clip_region":
+            return handlers.clips.duplicate_clip_region(
+                song, p.get("track_index", 0), p.get("clip_index", 0),
+                p.get("region_start", 0.0), p.get("region_length", 4.0),
+                p.get("destination_time", 0.0), p.get("pitch", -1),
+                p.get("transposition_amount", 0), ctrl)
+        elif cmd == "move_clip_playing_pos":
+            return handlers.clips.move_clip_playing_pos(
+                song, p.get("track_index", 0), p.get("clip_index", 0),
+                p.get("time", 0.0), ctrl)
+        elif cmd == "set_clip_grid":
+            return handlers.clips.set_clip_grid(
+                song, p.get("track_index", 0), p.get("clip_index", 0),
+                p.get("grid_quantization"), p.get("grid_is_triplet"), ctrl)
 
         # --- Mixer ---
         elif cmd == "set_track_volume":
@@ -565,6 +722,8 @@ class AbletonMCP(ControlSurface):
             return handlers.mixer.set_return_track_solo(song, p.get("return_track_index", 0), p.get("solo", False), ctrl)
         elif cmd == "set_master_volume":
             return handlers.mixer.set_master_volume(song, p.get("volume", 0.85), ctrl)
+        elif cmd == "set_crossfade_assign":
+            return handlers.mixer.set_crossfade_assign(song, p.get("track_index", 0), p.get("assign", 0), ctrl)
 
         # --- Scenes ---
         elif cmd == "create_scene":
@@ -633,6 +792,29 @@ class AbletonMCP(ControlSurface):
                 p.get("mod_mode_index"), p.get("mono_poly_index"),
                 p.get("midi_gate_index"), p.get("polyphony"),
                 p.get("pitch_bend_range"), ctrl)
+        elif cmd == "set_simpler_properties":
+            return handlers.devices.set_simpler_properties(
+                song, p.get("track_index", 0), p.get("device_index", 0),
+                p.get("playback_mode"), p.get("voices"), p.get("retrigger"),
+                p.get("slicing_playback_mode"),
+                p.get("start_marker"), p.get("end_marker"), p.get("gain"),
+                p.get("warp_mode"), p.get("warping"),
+                p.get("slicing_style"), p.get("slicing_sensitivity"),
+                p.get("slicing_beat_division"),
+                p.get("beats_granulation_resolution"),
+                p.get("beats_transient_envelope"),
+                p.get("beats_transient_loop_mode"),
+                p.get("complex_pro_formants"), p.get("complex_pro_envelope"),
+                p.get("texture_grain_size"), p.get("texture_flux"),
+                p.get("tones_grain_size"), ctrl)
+        elif cmd == "simpler_sample_action":
+            return handlers.devices.simpler_sample_action(
+                song, p.get("track_index", 0), p.get("device_index", 0),
+                p.get("action", "reverse"), p.get("beats"), ctrl)
+        elif cmd == "manage_sample_slices":
+            return handlers.devices.manage_sample_slices(
+                song, p.get("track_index", 0), p.get("device_index", 0),
+                p.get("action", "insert"), p.get("slice_time"), p.get("new_time"), ctrl)
 
         # --- Browser ---
         elif cmd == "load_browser_item":
@@ -641,6 +823,8 @@ class AbletonMCP(ControlSurface):
             return handlers.browser.load_instrument_or_effect(song, p.get("track_index", 0), p.get("uri", ""), ctrl)
         elif cmd == "load_sample":
             return handlers.browser.load_sample(song, p.get("track_index", 0), p.get("sample_uri", ""), ctrl)
+        elif cmd == "preview_browser_item":
+            return handlers.browser.preview_browser_item(song, p.get("uri"), p.get("action", "preview"), ctrl)
 
         # --- MIDI ---
         elif cmd == "add_notes_extended":
@@ -702,6 +886,27 @@ class AbletonMCP(ControlSurface):
         elif cmd == "unfreeze_track":
             return handlers.audio.unfreeze_track(song, p.get("track_index", 0), ctrl)
 
+        # --- Warp markers ---
+        elif cmd == "add_warp_marker":
+            return handlers.clips.add_warp_marker(
+                song, p.get("track_index", 0), p.get("clip_index", 0),
+                p.get("beat_time", 0.0), p.get("sample_time"), ctrl)
+        elif cmd == "move_warp_marker":
+            return handlers.clips.move_warp_marker(
+                song, p.get("track_index", 0), p.get("clip_index", 0),
+                p.get("marker_index", 0), p.get("beat_time", 0.0),
+                p.get("sample_time"), ctrl)
+        elif cmd == "remove_warp_marker":
+            return handlers.clips.remove_warp_marker(
+                song, p.get("track_index", 0), p.get("clip_index", 0),
+                p.get("marker_index", 0), ctrl)
+
+        # --- Looper ---
+        elif cmd == "control_looper":
+            return handlers.devices.control_looper(
+                song, p.get("track_index", 0), p.get("device_index", 0),
+                p.get("action", "play"), p.get("clip_slot_index"), ctrl)
+
         else:
             raise Exception("Unhandled modifying command: " + cmd)
 
@@ -729,6 +934,18 @@ class AbletonMCP(ControlSurface):
             return handlers.session.get_groove_pool(song, ctrl)
         elif cmd == "get_song_settings":
             return handlers.session.get_song_settings(song, ctrl)
+        elif cmd == "get_song_scale":
+            return handlers.session.get_song_scale(song, ctrl)
+        elif cmd == "get_selection_state":
+            return handlers.session.get_selection_state(song, ctrl)
+        elif cmd == "get_link_status":
+            return handlers.session.get_link_status(song, ctrl)
+        elif cmd == "get_tuning_system":
+            return handlers.session.get_tuning_system(song, ctrl)
+        elif cmd == "get_view_state":
+            return handlers.session.get_view_state(song, ctrl)
+        elif cmd == "get_playing_clips":
+            return handlers.session.get_playing_clips(song, ctrl)
 
         # --- Tracks ---
         elif cmd == "get_track_info":
@@ -739,6 +956,10 @@ class AbletonMCP(ControlSurface):
             return handlers.tracks.get_return_tracks_info(song, ctrl)
         elif cmd == "get_track_routing":
             return handlers.tracks.get_track_routing(song, p.get("track_index", 0), ctrl)
+        elif cmd == "get_track_meters":
+            return handlers.tracks.get_track_meters(song, p.get("track_index"), ctrl)
+        elif cmd == "get_take_lanes":
+            return handlers.tracks.get_take_lanes(song, p.get("track_index", 0), ctrl)
 
         # --- Clips ---
         elif cmd == "get_clip_info":
@@ -776,6 +997,9 @@ class AbletonMCP(ControlSurface):
                 song, p.get("track_index", 0), p.get("device_index", 0), ctrl)
         elif cmd == "get_transmute_properties":
             return handlers.devices.get_transmute_properties(
+                song, p.get("track_index", 0), p.get("device_index", 0), ctrl)
+        elif cmd == "get_simpler_properties":
+            return handlers.devices.get_simpler_properties(
                 song, p.get("track_index", 0), p.get("device_index", 0), ctrl)
 
         # --- Browser ---
@@ -817,6 +1041,8 @@ class AbletonMCP(ControlSurface):
             return handlers.audio.get_audio_clip_info(song, p.get("track_index", 0), p.get("clip_index", 0), ctrl)
         elif cmd == "analyze_audio_clip":
             return handlers.audio.analyze_audio_clip(song, p.get("track_index", 0), p.get("clip_index", 0), ctrl)
+        elif cmd == "get_warp_markers":
+            return handlers.clips.get_warp_markers(song, p.get("track_index", 0), p.get("clip_index", 0), ctrl)
 
         # --- Arrangement ---
         elif cmd == "get_arrangement_clips":

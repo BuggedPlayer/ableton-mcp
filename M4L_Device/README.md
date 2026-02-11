@@ -33,11 +33,30 @@ Optional deep Live Object Model (LOM) access that extends the standard AbletonMC
 
 ```
 MCP Server
-  ├── TCP :9877 → Remote Script (175 tools)
-  └── UDP :9878 / :9879 → M4L Bridge (23 tools, OSC protocol)
+  ├── TCP :9877 → Remote Script (192 tools)
+  └── UDP :9878 / :9879 → M4L Bridge (24 tools, OSC protocol)
 ```
 
 The server sends OSC commands with typed arguments. The M4L device processes them via the Live Object Model and returns URL-safe base64-encoded JSON responses. Large responses (>1.5KB) are automatically chunked into ~3.6KB UDP packets and reassembled by the server.
+
+## Pre-Built Devices
+
+Two pre-built `.amxd` devices are included for different Ableton versions:
+
+```
+M4L_Device/
+├── Suite/
+│   ├── Devicev2.amxd      ← Ableton Live 12 Suite (stable release)
+│   └── m4l_bridge.js
+├── Beta/
+│   ├── Devicev2.amxd      ← Ableton Live 12.x Beta
+│   └── m4l_bridge.js
+└── README.md
+```
+
+**Quick start:** Copy the appropriate folder's `Devicev2.amxd` and `m4l_bridge.js` to your User Library (`User Library/Presets/Audio Effects/Max Audio Effect/`), then drag the device onto any audio track.
+
+Both versions contain the same `m4l_bridge.js` — the `.amxd` patch files differ slightly because they were saved in different Ableton versions.
 
 ## Setup Instructions
 
@@ -46,9 +65,16 @@ The server sends OSC commands with typed arguments. The M4L device processes the
 - Ableton Live **Suite** or **Standard + Max for Live** add-on
 - AbletonMCP Remote Script already installed and working
 
-### Building the .amxd Device
+### Using the Pre-Built Device (Recommended)
 
-The `.amxd` device must be built manually in Ableton's Max editor since it cannot be code-generated. Follow these steps:
+1. Copy `Devicev2.amxd` and `m4l_bridge.js` from `Suite/` or `Beta/` (matching your Ableton version) to `User Library/Presets/Audio Effects/Max Audio Effect/`
+2. In Ableton, find the device in your User Library browser
+3. Drag it onto any audio track
+4. The device will immediately start listening on UDP port 9878
+
+### Building the .amxd Device Manually
+
+If you need to build the device from scratch (e.g., for a different Ableton version), follow these steps:
 
 1. **Open Ableton Live**
 
@@ -135,7 +161,7 @@ The `.amxd` device must be built manually in Ableton's Max editor since it canno
 
 The device was originally a MIDI Effect, but `plugin~` in a MIDI Effect receives **no audio** — it sits before the instrument in the signal chain, so there's nothing to analyze. As an Audio Effect, `plugin~` taps the post-instrument audio signal, enabling real-time RMS/peak measurement and spectral analysis.
 
-All 28 OSC commands, LiveAPI access, observers, and cross-track meter reading work identically in both device types. The only difference is that MSP audio analysis (`plugin~`, `peakamp~`, `fffb~`) now actually receives audio.
+All 29 OSC commands, LiveAPI access, observers, and cross-track meter reading work identically in both device types. The only difference is that MSP audio analysis (`plugin~`, `peakamp~`, `fffb~`) now actually receives audio.
 
 ### Loading the Device
 
@@ -149,7 +175,7 @@ All 28 OSC commands, LiveAPI access, observers, and cross-track meter reading wo
 Use the `m4l_status` MCP tool to check if the bridge is connected:
 
 ```
-m4l_status()  →  "M4L bridge connected (v3.1.0)"
+m4l_status()  →  "M4L bridge connected (v3.2.0)"
 ```
 
 ## Available MCP Tools (When Bridge Is Loaded)

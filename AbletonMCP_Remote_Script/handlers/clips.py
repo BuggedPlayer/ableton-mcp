@@ -205,6 +205,28 @@ def get_clip_info(song, track_index, clip_index, ctrl=None):
         except Exception:
             pass
 
+        # Playing/triggered status
+        try:
+            result["is_triggered"] = clip.is_triggered
+        except Exception:
+            pass
+        try:
+            result["playing_position"] = clip.playing_position
+        except Exception:
+            pass
+        try:
+            result["launch_mode"] = int(clip.launch_mode)
+        except Exception:
+            pass
+        try:
+            result["velocity_amount"] = clip.velocity_amount
+        except Exception:
+            pass
+        try:
+            result["legato"] = clip.legato
+        except Exception:
+            pass
+
         return result
     except Exception as e:
         if ctrl:
@@ -504,6 +526,89 @@ def audio_to_midi(song, track_index, clip_index, conversion_type, ctrl=None):
         raise
 
 
+def duplicate_clip_region(song, track_index, clip_index,
+                          region_start, region_length, destination_time,
+                          pitch=-1, transposition_amount=0, ctrl=None):
+    """Duplicate notes in a region to another position, with optional transposition.
+
+    MIDI clips only. If pitch is -1, all notes in the region are duplicated.
+
+    Args:
+        region_start: Start time of the region to duplicate.
+        region_length: Length of the region.
+        destination_time: Where to place the duplicated notes.
+        pitch: Only duplicate notes at this pitch (-1 for all).
+        transposition_amount: Semitones to transpose (0 for none).
+    """
+    try:
+        clip = _get_clip(song, track_index, clip_index)
+        if clip.is_audio_clip:
+            raise ValueError("duplicate_region is only available for MIDI clips")
+        clip.duplicate_region(float(region_start), float(region_length),
+                              float(destination_time), int(pitch), int(transposition_amount))
+        return {
+            "track_index": track_index,
+            "clip_index": clip_index,
+            "region_start": region_start,
+            "region_length": region_length,
+            "destination_time": destination_time,
+            "pitch": pitch,
+            "transposition_amount": transposition_amount,
+        }
+    except Exception as e:
+        if ctrl:
+            ctrl.log_message("Error duplicating clip region: " + str(e))
+        raise
+
+
+def move_clip_playing_pos(song, track_index, clip_index, time, ctrl=None):
+    """Jump to a position within a currently playing clip.
+
+    Args:
+        time: The time position to jump to within the clip.
+    """
+    try:
+        clip = _get_clip(song, track_index, clip_index)
+        clip.move_playing_pos(float(time))
+        return {
+            "track_index": track_index,
+            "clip_index": clip_index,
+            "position": float(time),
+        }
+    except Exception as e:
+        if ctrl:
+            ctrl.log_message("Error moving clip playing position: " + str(e))
+        raise
+
+
+def set_clip_grid(song, track_index, clip_index,
+                   grid_quantization=None, grid_is_triplet=None, ctrl=None):
+    """Set the MIDI editor grid resolution for a clip.
+
+    Args:
+        grid_quantization: Grid resolution value (enum int from Clip.grid_quantization).
+        grid_is_triplet: True to show grid in triplet mode, False for standard.
+    """
+    try:
+        clip = _get_clip(song, track_index, clip_index)
+        changes = {}
+        if grid_quantization is not None:
+            clip.view.grid_quantization = int(grid_quantization)
+            changes["grid_quantization"] = int(grid_quantization)
+        if grid_is_triplet is not None:
+            clip.view.grid_is_triplet = bool(grid_is_triplet)
+            changes["grid_is_triplet"] = bool(grid_is_triplet)
+        if not changes:
+            raise ValueError("No parameters specified")
+        changes["track_index"] = track_index
+        changes["clip_index"] = clip_index
+        return changes
+    except Exception as e:
+        if ctrl:
+            ctrl.log_message("Error setting clip grid: " + str(e))
+        raise
+
+
 # --- Helper ---
 
 
@@ -518,3 +623,128 @@ def _get_clip(song, track_index, clip_index):
     if not clip_slot.has_clip:
         raise Exception("No clip in slot")
     return clip_slot.clip
+
+
+# --- Warp Markers ---
+
+
+def get_warp_markers(song, track_index, clip_index, ctrl=None):
+    """Get the warp markers of an audio clip."""
+    try:
+        clip = _get_clip(song, track_index, clip_index)
+        if not clip.is_audio_clip:
+            raise ValueError("Warp markers are only available on audio clips")
+        markers = []
+        try:
+            wm = clip.warp_markers
+            if isinstance(wm, list):
+                for i, m in enumerate(wm):
+                    markers.append({
+                        "index": i,
+                        "beat_time": m.beat_time,
+                        "sample_time": m.sample_time,
+                    })
+            elif isinstance(wm, dict):
+                # LOM returns dict format
+                wm_list = wm.get("warp_markers", [])
+                for i, m in enumerate(wm_list):
+                    if isinstance(m, dict):
+                        markers.append({
+                            "index": i,
+                            "beat_time": m.get("beat_time", 0.0),
+                            "sample_time": m.get("sample_time", 0.0),
+                        })
+                    else:
+                        markers.append({
+                            "index": i,
+                            "beat_time": getattr(m, "beat_time", 0.0),
+                            "sample_time": getattr(m, "sample_time", 0.0),
+                        })
+        except Exception as e:
+            if ctrl:
+                ctrl.log_message("Error reading warp markers: " + str(e))
+        return {
+            "track_index": track_index,
+            "clip_index": clip_index,
+            "warping": clip.warping,
+            "warp_markers": markers,
+            "count": len(markers),
+        }
+    except Exception as e:
+        if ctrl:
+            ctrl.log_message("Error getting warp markers: " + str(e))
+        raise
+
+
+def add_warp_marker(song, track_index, clip_index, beat_time, sample_time=None, ctrl=None):
+    """Add a warp marker to an audio clip.
+
+    Args:
+        beat_time: The beat position for the warp marker.
+        sample_time: The sample position (if None, auto-calculated by Live).
+    """
+    try:
+        clip = _get_clip(song, track_index, clip_index)
+        if not clip.is_audio_clip:
+            raise ValueError("Warp markers are only available on audio clips")
+        if sample_time is not None:
+            clip.add_warp_marker(float(beat_time), float(sample_time))
+        else:
+            clip.add_warp_marker(float(beat_time))
+        return {
+            "added": True,
+            "beat_time": float(beat_time),
+            "sample_time": float(sample_time) if sample_time is not None else None,
+        }
+    except Exception as e:
+        if ctrl:
+            ctrl.log_message("Error adding warp marker: " + str(e))
+        raise
+
+
+def move_warp_marker(song, track_index, clip_index, marker_index, beat_time, sample_time=None, ctrl=None):
+    """Move a warp marker to a new position.
+
+    Args:
+        marker_index: Index of the warp marker to move.
+        beat_time: New beat position.
+        sample_time: New sample position (optional).
+    """
+    try:
+        clip = _get_clip(song, track_index, clip_index)
+        if not clip.is_audio_clip:
+            raise ValueError("Warp markers are only available on audio clips")
+        if sample_time is not None:
+            clip.move_warp_marker(int(marker_index), float(beat_time), float(sample_time))
+        else:
+            clip.move_warp_marker(int(marker_index), float(beat_time))
+        return {
+            "moved": True,
+            "marker_index": int(marker_index),
+            "beat_time": float(beat_time),
+        }
+    except Exception as e:
+        if ctrl:
+            ctrl.log_message("Error moving warp marker: " + str(e))
+        raise
+
+
+def remove_warp_marker(song, track_index, clip_index, marker_index, ctrl=None):
+    """Remove a warp marker from an audio clip.
+
+    Args:
+        marker_index: Index of the warp marker to remove.
+    """
+    try:
+        clip = _get_clip(song, track_index, clip_index)
+        if not clip.is_audio_clip:
+            raise ValueError("Warp markers are only available on audio clips")
+        clip.remove_warp_marker(int(marker_index))
+        return {
+            "removed": True,
+            "marker_index": int(marker_index),
+        }
+    except Exception as e:
+        if ctrl:
+            ctrl.log_message("Error removing warp marker: " + str(e))
+        raise

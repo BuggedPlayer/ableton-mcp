@@ -76,6 +76,22 @@ def get_song_transport(song, ctrl=None):
             result["record_mode"] = song.record_mode
         except Exception:
             result["record_mode"] = False
+        try:
+            result["punch_in"] = song.punch_in
+        except Exception:
+            result["punch_in"] = None
+        try:
+            result["punch_out"] = song.punch_out
+        except Exception:
+            result["punch_out"] = None
+        try:
+            result["count_in_duration"] = int(song.count_in_duration)
+        except Exception:
+            result["count_in_duration"] = None
+        try:
+            result["is_counting_in"] = song.is_counting_in
+        except Exception:
+            result["is_counting_in"] = None
         return result
     except Exception as e:
         if ctrl:
@@ -463,6 +479,26 @@ def get_song_settings(song, ctrl=None):
             result["draw_mode"] = song.view.draw_mode
         except Exception:
             result["draw_mode"] = None
+        try:
+            result["tempo_follower_enabled"] = song.tempo_follower_enabled
+        except Exception:
+            result["tempo_follower_enabled"] = None
+        try:
+            result["exclusive_arm"] = song.exclusive_arm
+        except Exception:
+            result["exclusive_arm"] = None
+        try:
+            result["exclusive_solo"] = song.exclusive_solo
+        except Exception:
+            result["exclusive_solo"] = None
+        try:
+            result["session_automation_record"] = song.session_automation_record
+        except Exception:
+            result["session_automation_record"] = None
+        try:
+            result["song_length"] = song.song_length
+        except Exception:
+            result["song_length"] = None
         return result
     except Exception as e:
         if ctrl:
@@ -473,7 +509,8 @@ def get_song_settings(song, ctrl=None):
 def set_song_settings(song, signature_numerator=None, signature_denominator=None,
                        swing_amount=None, clip_trigger_quantization=None,
                        midi_recording_quantization=None, back_to_arranger=None,
-                       follow_song=None, draw_mode=None, ctrl=None):
+                       follow_song=None, draw_mode=None,
+                       session_automation_record=None, ctrl=None):
     """Set global song settings."""
     try:
         changes = {}
@@ -510,6 +547,9 @@ def set_song_settings(song, signature_numerator=None, signature_denominator=None
         if draw_mode is not None:
             song.view.draw_mode = bool(draw_mode)
             changes["draw_mode"] = bool(draw_mode)
+        if session_automation_record is not None:
+            song.session_automation_record = bool(session_automation_record)
+            changes["session_automation_record"] = bool(session_automation_record)
         if not changes:
             raise ValueError("No parameters specified")
         return changes
@@ -679,4 +719,400 @@ def set_groove_settings(song, groove_amount=None, groove_index=None,
     except Exception as e:
         if ctrl:
             ctrl.log_message("Error setting groove settings: " + str(e))
+        raise
+
+
+# --- Scale & Root Note ---
+
+
+def get_song_scale(song, ctrl=None):
+    """Get the song's current scale settings (root note, scale name, mode, intervals)."""
+    try:
+        result = {
+            "root_note": song.root_note,
+            "scale_name": song.scale_name,
+            "scale_mode": song.scale_mode,
+        }
+        try:
+            result["scale_intervals"] = list(song.scale_intervals)
+        except Exception:
+            result["scale_intervals"] = None
+        return result
+    except Exception as e:
+        if ctrl:
+            ctrl.log_message("Error getting song scale: " + str(e))
+        raise
+
+
+def set_song_scale(song, root_note=None, scale_name=None, scale_mode=None, ctrl=None):
+    """Set the song's scale settings.
+
+    Args:
+        root_note: 0-11 (C=0, C#=1, ..., B=11)
+        scale_name: Scale name as shown in Live (e.g. 'Major', 'Minor', 'Dorian')
+        scale_mode: True to enable Scale Mode highlighting
+    """
+    try:
+        changes = {}
+        if root_note is not None:
+            val = int(root_note)
+            if val < 0 or val > 11:
+                raise ValueError("root_note must be 0-11, got {0}".format(val))
+            song.root_note = val
+            changes["root_note"] = val
+        if scale_name is not None:
+            song.scale_name = str(scale_name)
+            changes["scale_name"] = song.scale_name
+        if scale_mode is not None:
+            song.scale_mode = bool(scale_mode)
+            changes["scale_mode"] = bool(scale_mode)
+        if not changes:
+            raise ValueError("No parameters specified")
+        return changes
+    except Exception as e:
+        if ctrl:
+            ctrl.log_message("Error setting song scale: " + str(e))
+        raise
+
+
+# --- Punch In/Out ---
+
+
+def set_punch(song, punch_in=None, punch_out=None, count_in_duration=None, ctrl=None):
+    """Set punch in/out and count-in settings.
+
+    Args:
+        punch_in: Enable/disable punch-in
+        punch_out: Enable/disable punch-out
+        count_in_duration: 0=None, 1=1 Bar, 2=2 Bars, 3=4 Bars
+    """
+    try:
+        changes = {}
+        if punch_in is not None:
+            song.punch_in = bool(punch_in)
+            changes["punch_in"] = bool(punch_in)
+        if punch_out is not None:
+            song.punch_out = bool(punch_out)
+            changes["punch_out"] = bool(punch_out)
+        if count_in_duration is not None:
+            val = int(count_in_duration)
+            if val < 0 or val > 3:
+                raise ValueError("count_in_duration must be 0-3, got {0}".format(val))
+            try:
+                song.count_in_duration = val
+                changes["count_in_duration"] = val
+            except Exception:
+                changes["count_in_duration_error"] = "read-only in this Live version"
+        if not changes:
+            raise ValueError("No parameters specified")
+        return changes
+    except Exception as e:
+        if ctrl:
+            ctrl.log_message("Error setting punch: " + str(e))
+        raise
+
+
+# --- Selection State ---
+
+
+def get_selection_state(song, ctrl=None):
+    """Get what is currently selected in Live's UI."""
+    try:
+        result = {}
+
+        # Selected track
+        try:
+            sel_track = song.view.selected_track
+            if sel_track:
+                # Find track index
+                for i, t in enumerate(song.tracks):
+                    if t == sel_track:
+                        result["selected_track"] = {"index": i, "name": t.name, "type": "track"}
+                        break
+                else:
+                    for i, t in enumerate(song.return_tracks):
+                        if t == sel_track:
+                            result["selected_track"] = {"index": i, "name": t.name, "type": "return"}
+                            break
+                    else:
+                        if sel_track == song.master_track:
+                            result["selected_track"] = {"index": 0, "name": "Master", "type": "master"}
+        except Exception:
+            result["selected_track"] = None
+
+        # Selected scene
+        try:
+            sel_scene = song.view.selected_scene
+            if sel_scene:
+                for i, s in enumerate(song.scenes):
+                    if s == sel_scene:
+                        result["selected_scene"] = {"index": i, "name": s.name}
+                        break
+        except Exception:
+            result["selected_scene"] = None
+
+        # Detail clip
+        try:
+            detail_clip = song.view.detail_clip
+            if detail_clip:
+                result["detail_clip"] = {
+                    "name": detail_clip.name,
+                    "is_midi": detail_clip.is_midi_clip,
+                    "is_audio": detail_clip.is_audio_clip,
+                    "length": detail_clip.length,
+                }
+        except Exception:
+            result["detail_clip"] = None
+
+        # Draw mode and follow song
+        try:
+            result["draw_mode"] = song.view.draw_mode
+        except Exception:
+            result["draw_mode"] = None
+        try:
+            result["follow_song"] = song.view.follow_song
+        except Exception:
+            result["follow_song"] = None
+
+        # Highlighted clip slot
+        try:
+            hcs = song.view.highlighted_clip_slot
+            if hcs:
+                result["highlighted_clip_slot_has_clip"] = hcs.has_clip
+        except Exception:
+            pass
+
+        return result
+    except Exception as e:
+        if ctrl:
+            ctrl.log_message("Error getting selection state: " + str(e))
+        raise
+
+
+# --- Link Sync ---
+
+
+def get_link_status(song, ctrl=None):
+    """Get Ableton Link sync status."""
+    try:
+        result = {
+            "link_enabled": song.is_ableton_link_enabled,
+        }
+        try:
+            result["start_stop_sync_enabled"] = song.is_ableton_link_start_stop_sync_enabled
+        except Exception:
+            result["start_stop_sync_enabled"] = None
+        return result
+    except Exception as e:
+        if ctrl:
+            ctrl.log_message("Error getting link status: " + str(e))
+        raise
+
+
+def set_link_enabled(song, enabled=None, start_stop_sync=None, ctrl=None):
+    """Enable/disable Ableton Link and start/stop sync."""
+    try:
+        changes = {}
+        if enabled is not None:
+            song.is_ableton_link_enabled = bool(enabled)
+            changes["link_enabled"] = bool(enabled)
+        if start_stop_sync is not None:
+            song.is_ableton_link_start_stop_sync_enabled = bool(start_stop_sync)
+            changes["start_stop_sync_enabled"] = bool(start_stop_sync)
+        if not changes:
+            raise ValueError("No parameters specified")
+        return changes
+    except Exception as e:
+        if ctrl:
+            ctrl.log_message("Error setting link: " + str(e))
+        raise
+
+
+# --- Tuning System ---
+
+
+def get_tuning_system(song, ctrl=None):
+    """Get the current tuning system settings."""
+    try:
+        ts = song.tuning_system
+        result = {}
+        try:
+            result["name"] = ts.name
+        except Exception:
+            result["name"] = "Equal Temperament"
+        try:
+            result["pseudo_octave_in_cents"] = ts.pseudo_octave_in_cents
+        except Exception:
+            result["pseudo_octave_in_cents"] = 1200.0
+        try:
+            result["lowest_note"] = ts.lowest_note
+        except Exception:
+            result["lowest_note"] = None
+        try:
+            result["highest_note"] = ts.highest_note
+        except Exception:
+            result["highest_note"] = None
+        try:
+            result["reference_pitch"] = ts.reference_pitch
+        except Exception:
+            result["reference_pitch"] = None
+        try:
+            result["note_tunings"] = ts.note_tunings
+        except Exception:
+            result["note_tunings"] = None
+        return result
+    except Exception:
+        return {
+            "name": "Equal Temperament",
+            "pseudo_octave_in_cents": 1200.0,
+            "lowest_note": None,
+            "highest_note": None,
+            "reference_pitch": None,
+            "note_tunings": None,
+            "note": "tuning_system not available in this Live version"
+        }
+
+
+# --- Application View ---
+
+
+def get_view_state(song, ctrl=None):
+    """Get the current state of Live's application views."""
+    try:
+        import Live
+        app = Live.Application.get_application()
+        view = app.view
+        views = ["Browser", "Arranger", "Session", "Detail", "Detail/Clip", "Detail/DeviceChain"]
+        result = {
+            "focused_view": view.focused_document_view,
+            "browse_mode": view.browse_mode,
+            "views": {},
+        }
+        for v in views:
+            try:
+                result["views"][v] = view.is_view_visible(v)
+            except Exception:
+                result["views"][v] = None
+        return result
+    except Exception as e:
+        if ctrl:
+            ctrl.log_message("Error getting view state: " + str(e))
+        raise
+
+
+def set_view(song, action, view_name, ctrl=None):
+    """Show, hide, or focus a view in Live's UI.
+
+    Args:
+        action: 'show', 'hide', 'focus', or 'toggle_browse'
+        view_name: 'Browser', 'Arranger', 'Session', 'Detail', 'Detail/Clip', 'Detail/DeviceChain'
+    """
+    try:
+        import Live
+        app = Live.Application.get_application()
+        view = app.view
+
+        if action == "show":
+            view.show_view(view_name)
+        elif action == "hide":
+            view.hide_view(view_name)
+        elif action == "focus":
+            view.focus_view(view_name)
+        elif action == "toggle_browse":
+            view.toggle_browse()
+        else:
+            raise ValueError("action must be 'show', 'hide', 'focus', or 'toggle_browse', got '{0}'".format(action))
+
+        return {"action": action, "view_name": view_name}
+    except Exception as e:
+        if ctrl:
+            ctrl.log_message("Error setting view: " + str(e))
+        raise
+
+
+def zoom_scroll_view(song, action, direction, view_name, modifier_pressed=False, ctrl=None):
+    """Zoom or scroll a view in Live's UI.
+
+    Args:
+        action: 'zoom' or 'scroll'
+        direction: 0=up, 1=down, 2=left, 3=right
+        view_name: 'Arranger', 'Session', 'Browser', 'Detail/DeviceChain'
+        modifier_pressed: Modifies behavior (e.g. zoom only selected track height)
+    """
+    try:
+        import Live
+        app = Live.Application.get_application()
+        view = app.view
+
+        direction = int(direction)
+        if direction < 0 or direction > 3:
+            raise ValueError("direction must be 0-3, got {0}".format(direction))
+
+        if action == "zoom":
+            view.zoom_view(direction, view_name, bool(modifier_pressed))
+        elif action == "scroll":
+            view.scroll_view(direction, view_name, bool(modifier_pressed))
+        else:
+            raise ValueError("action must be 'zoom' or 'scroll', got '{0}'".format(action))
+
+        return {"action": action, "direction": direction, "view_name": view_name}
+    except Exception as e:
+        if ctrl:
+            ctrl.log_message("Error zoom/scroll view: " + str(e))
+        raise
+
+
+# --- Playing Clips ---
+
+
+def get_playing_clips(song, ctrl=None):
+    """Get all currently playing/triggered clips across all tracks."""
+    try:
+        playing = []
+        for track_idx, track in enumerate(song.tracks):
+            try:
+                slot_idx = track.playing_slot_index
+                fired_idx = track.fired_slot_index
+                if slot_idx >= 0:
+                    try:
+                        clip = track.clip_slots[slot_idx].clip
+                        playing.append({
+                            "track_index": track_idx,
+                            "track_name": track.name,
+                            "clip_index": slot_idx,
+                            "clip_name": clip.name if clip else "",
+                            "status": "playing",
+                        })
+                    except Exception:
+                        playing.append({
+                            "track_index": track_idx,
+                            "track_name": track.name,
+                            "clip_index": slot_idx,
+                            "clip_name": "",
+                            "status": "playing",
+                        })
+                if fired_idx >= 0 and fired_idx != slot_idx:
+                    try:
+                        clip = track.clip_slots[fired_idx].clip
+                        playing.append({
+                            "track_index": track_idx,
+                            "track_name": track.name,
+                            "clip_index": fired_idx,
+                            "clip_name": clip.name if clip else "",
+                            "status": "triggered",
+                        })
+                    except Exception:
+                        playing.append({
+                            "track_index": track_idx,
+                            "track_name": track.name,
+                            "clip_index": fired_idx,
+                            "clip_name": "",
+                            "status": "triggered",
+                        })
+            except Exception:
+                pass
+        return {"playing_clips": playing, "count": len(playing)}
+    except Exception as e:
+        if ctrl:
+            ctrl.log_message("Error getting playing clips: " + str(e))
         raise
