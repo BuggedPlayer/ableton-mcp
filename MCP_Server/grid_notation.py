@@ -431,20 +431,49 @@ def notes_to_melodic_grid(
 # AUTO-DETECTION
 # =============================================================================
 
+_GM_DRUM_PITCHES = frozenset(range(35, 82))  # 35=Acoustic Bass Drum .. 81=Open Triangle
+
+
 def is_drum_track(notes: list[dict]) -> bool:
     """
     Detect if notes are likely from a drum track.
-    Drum tracks typically use pitches 35-81 (GM drum map range).
+    Combines GM drum pitch matching with temporal heuristics.
     """
-    if not notes:
+    if not notes or len(notes) < 2:
         return False
 
-    pitches = set(n.get('pitch', 60) for n in notes)
-    drum_pitches = sum(1 for p in pitches if 35 <= p <= 81)
+    pitches = [n.get('pitch', 60) for n in notes]
+    unique_pitches = set(pitches)
+    fraction_in_gm = sum(1 for p in unique_pitches if p in _GM_DRUM_PITCHES) / len(unique_pitches)
 
-    # If most pitches are in drum range and there are multiple distinct pitches
-    # clustered in that range, it's likely drums
-    return drum_pitches >= len(pitches) * 0.8 and len(pitches) > 1
+    # Extract durations
+    durations = []
+    for n in notes:
+        d = float(n.get('duration', n.get('end', 0) - n.get('start', 0)))
+        if d > 0:
+            durations.append(d)
+
+    if not durations:
+        return fraction_in_gm >= 0.8 and len(unique_pitches) > 1
+
+    # Temporal heuristics
+    durations.sort()
+    median_dur = durations[len(durations) // 2]
+    mean_dur = sum(durations) / len(durations)
+    dur_variance = sum((d - mean_dur) ** 2 for d in durations) / len(durations)
+
+    short_notes = median_dur < 0.5       # drums are typically short hits
+    low_variance = dur_variance < 0.25   # drums have uniform-ish durations
+
+    # High GM fraction alone is strong signal
+    if fraction_in_gm >= 0.8 and len(unique_pitches) > 2:
+        return True
+
+    # Moderate GM fraction + short/uniform notes
+    if fraction_in_gm >= 0.6 and short_notes and low_variance:
+        return True
+
+    return False
 
 
 def notes_to_grid(notes: list[dict], is_drums: bool = None, steps_per_beat: int = 4) -> str:

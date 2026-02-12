@@ -198,6 +198,7 @@ def freeze_track(song, track_index, ctrl=None):
 
         if getattr(track, "is_frozen", False):
             return {
+                "success": True,
                 "track_index": track_index,
                 "frozen": True,
                 "track_name": track.name,
@@ -209,6 +210,7 @@ def freeze_track(song, track_index, ctrl=None):
                 "Track '{0}' cannot be frozen (may be a return/master track or have no devices)".format(track.name))
 
         return {
+            "success": False,
             "track_index": track_index,
             "frozen": False,
             "track_name": track.name,
@@ -230,6 +232,7 @@ def unfreeze_track(song, track_index, ctrl=None):
 
         if not getattr(track, "is_frozen", False):
             return {
+                "success": True,
                 "track_index": track_index,
                 "frozen": False,
                 "track_name": track.name,
@@ -237,6 +240,7 @@ def unfreeze_track(song, track_index, ctrl=None):
             }
 
         return {
+            "success": False,
             "track_index": track_index,
             "frozen": True,
             "track_name": track.name,

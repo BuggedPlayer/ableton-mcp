@@ -11,6 +11,8 @@ _BROWSER_ROOTS = (
     "max_for_live", "plugins",
 )
 
+_MAX_CHILDREN = 200  # cap per-folder iteration to avoid hanging on huge directories
+
 
 def find_browser_item_by_uri(browser_or_item, uri, max_depth=10, current_depth=0, ctrl=None):
     """Find a browser item by its URI (recursive search across all categories)."""
@@ -42,7 +44,11 @@ def find_browser_item_by_uri(browser_or_item, uri, max_depth=10, current_depth=0
                     return item
             return None
         if hasattr(browser_or_item, "children") and browser_or_item.children:
+            count = 0
             for child in browser_or_item.children:
+                if count >= _MAX_CHILDREN:
+                    break
+                count += 1
                 item = find_browser_item_by_uri(child, uri, max_depth, current_depth + 1, ctrl)
                 if item:
                     return item
@@ -173,15 +179,21 @@ def _find_browser_item_by_name(browser, name, ctrl=None):
             return None
         if not children:
             return None
+        count = 0
         for child in children:
+            if count >= _MAX_CHILDREN:
+                break
+            count += 1
+            is_folder = hasattr(child, "is_folder") and child.is_folder
+            if is_folder:
+                found = _search(child, depth + 1, max_depth)
+                if found:
+                    return found
+                continue
             child_name = getattr(child, "name", "").lower()
             if child_name == name_lower or child_name == name_stem:
                 if not hasattr(child, "is_loadable") or child.is_loadable:
                     return child
-            if hasattr(child, "children") and child.children:
-                found = _search(child, depth + 1, max_depth)
-                if found:
-                    return found
         return None
 
     # Search user_library first (most likely location for samples)
@@ -247,6 +259,10 @@ def load_sample(song, track_index, sample_uri, ctrl=None):
 
         if not item:
             raise ValueError("Sample '{0}' not found in browser".format(sample_uri))
+        if hasattr(item, 'is_folder') and item.is_folder:
+            raise ValueError(
+                "'{0}' is a folder, not a loadable sample".format(
+                    getattr(item, 'name', sample_uri)))
         if hasattr(item, 'is_loadable') and not item.is_loadable:
             raise ValueError(
                 "Sample item '{0}' (URI: {1}) is not loadable".format(item.name, sample_uri))
@@ -273,7 +289,7 @@ def _process_item(item):
         return None
     return {
         "name": item.name if hasattr(item, "name") else "Unknown",
-        "is_folder": hasattr(item, "children") and bool(item.children),
+        "is_folder": (hasattr(item, "is_folder") and item.is_folder) or (hasattr(item, "children") and bool(item.children)),
         "is_device": hasattr(item, "is_device") and item.is_device,
         "is_loadable": hasattr(item, "is_loadable") and item.is_loadable,
         "uri": item.uri if hasattr(item, "uri") else None,
@@ -422,9 +438,11 @@ def get_browser_items_at_path(song, path, ctrl=None):
         items = []
         if hasattr(current_item, "children"):
             for child in current_item.children:
+                if len(items) >= _MAX_CHILDREN:
+                    break
                 item_info = {
                     "name": child.name if hasattr(child, "name") else "Unknown",
-                    "is_folder": hasattr(child, "children") and bool(child.children),
+                    "is_folder": (hasattr(child, "is_folder") and child.is_folder) or (hasattr(child, "children") and bool(child.children)),
                     "is_device": hasattr(child, "is_device") and child.is_device,
                     "is_loadable": hasattr(child, "is_loadable") and child.is_loadable,
                     "uri": child.uri if hasattr(child, "uri") else None,
@@ -435,7 +453,8 @@ def get_browser_items_at_path(song, path, ctrl=None):
             "path": path,
             "name": current_item.name if hasattr(current_item, "name") else "Unknown",
             "uri": current_item.uri if hasattr(current_item, "uri") else None,
-            "is_folder": hasattr(current_item, "children") and bool(current_item.children),
+            "is_folder": (hasattr(current_item, "is_folder") and current_item.is_folder) or (hasattr(current_item, "children") and bool(current_item.children)),
+            "truncated": len(items) >= _MAX_CHILDREN,
             "is_device": hasattr(current_item, "is_device") and current_item.is_device,
             "is_loadable": hasattr(current_item, "is_loadable") and current_item.is_loadable,
             "items": items,
@@ -473,7 +492,7 @@ def search_browser(song, query, category, ctrl=None):
             if hasattr(item, "name") and query_lower in item.name.lower():
                 result_item = {
                     "name": item.name,
-                    "is_folder": hasattr(item, "children") and bool(item.children),
+                    "is_folder": (hasattr(item, "is_folder") and item.is_folder) or (hasattr(item, "children") and bool(item.children)),
                     "is_device": hasattr(item, "is_device") and item.is_device,
                     "is_loadable": hasattr(item, "is_loadable") and item.is_loadable,
                     "uri": item.uri if hasattr(item, "uri") else None,
@@ -485,7 +504,11 @@ def search_browser(song, query, category, ctrl=None):
                 except Exception:
                     return
                 if children:
+                    count = 0
                     for child in children:
+                        if count >= _MAX_CHILDREN:
+                            break
+                        count += 1
                         search_item(child, depth + 1, max_depth)
 
         if category == "all" or category not in _BROWSER_ROOTS:
@@ -533,9 +556,11 @@ def get_user_library(song, ctrl=None):
             user_lib = app.browser.user_library
             if hasattr(user_lib, "children"):
                 for child in user_lib.children:
+                    if len(items) >= _MAX_CHILDREN:
+                        break
                     items.append({
                         "name": child.name if hasattr(child, "name") else "Unknown",
-                        "is_folder": hasattr(child, "children") and bool(child.children),
+                        "is_folder": (hasattr(child, "is_folder") and child.is_folder) or (hasattr(child, "children") and bool(child.children)),
                         "uri": child.uri if hasattr(child, "uri") else None,
                     })
         return {"items": items, "count": len(items)}
@@ -560,6 +585,8 @@ def get_user_folders(song, ctrl=None):
                 folder_items = []
                 if hasattr(folder, "children"):
                     for child in folder.children:
+                        if len(folder_items) >= _MAX_CHILDREN:
+                            break
                         folder_items.append({
                             "name": child.name if hasattr(child, "name") else "Unknown",
                             "uri": child.uri if hasattr(child, "uri") else None,

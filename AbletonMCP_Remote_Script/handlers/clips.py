@@ -64,16 +64,22 @@ def add_notes_to_clip(song, track_index, clip_index, notes, ctrl=None):
                         mute=s["mute"]))
                 clip.add_new_notes(tuple(specs))
                 return {"note_count": len(notes)}
-        except Exception:
-            pass
+        except Exception as exc:
+            if ctrl:
+                ctrl.log_message("Strategy 1 (MidiNoteSpecification) failed: " + str(exc))
 
-        # Strategy 2: Dict-based add_new_notes (Live 11+)
+        # Strategy 2: Legacy tuple-based add_new_notes (Live 11+)
         if hasattr(clip, 'add_new_notes'):
             try:
-                clip.add_new_notes(tuple(note_specs))
+                legacy_tuples = tuple(
+                    (s["pitch"], s["start_time"], s["duration"], s["velocity"], s["mute"])
+                    for s in note_specs
+                )
+                clip.add_new_notes(legacy_tuples)
                 return {"note_count": len(notes)}
-            except Exception:
-                pass
+            except Exception as exc:
+                if ctrl:
+                    ctrl.log_message("Strategy 2 (add_new_notes tuples) failed: " + str(exc))
 
         # Strategy 3: Legacy set_notes fallback
         # Fetch existing notes and merge so set_notes doesn't replace them.
@@ -396,10 +402,35 @@ def set_clip_start_end(song, track_index, clip_index, start_marker, end_marker, 
     """Set clip start_marker and end_marker."""
     try:
         clip = _get_clip(song, track_index, clip_index)
-        if start_marker is not None:
-            clip.start_marker = float(start_marker)
-        if end_marker is not None:
-            clip.end_marker = float(end_marker)
+
+        if start_marker is not None and end_marker is not None:
+            sm = float(start_marker)
+            em = float(end_marker)
+            if sm >= em:
+                raise ValueError(
+                    "start_marker ({0}) must be less than end_marker ({1})".format(sm, em))
+            # Safe order: set the "expanding" side first
+            if em > clip.start_marker:
+                clip.end_marker = em
+                clip.start_marker = sm
+            else:
+                clip.start_marker = sm
+                clip.end_marker = em
+        elif start_marker is not None:
+            sm = float(start_marker)
+            if sm >= clip.end_marker:
+                raise ValueError(
+                    "start_marker ({0}) must be less than current end_marker ({1})".format(
+                        sm, clip.end_marker))
+            clip.start_marker = sm
+        elif end_marker is not None:
+            em = float(end_marker)
+            if clip.start_marker >= em:
+                raise ValueError(
+                    "end_marker ({0}) must be greater than current start_marker ({1})".format(
+                        em, clip.start_marker))
+            clip.end_marker = em
+
         return {
             "start_marker": clip.start_marker,
             "end_marker": clip.end_marker,

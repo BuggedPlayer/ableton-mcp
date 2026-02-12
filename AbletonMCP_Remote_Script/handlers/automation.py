@@ -288,6 +288,16 @@ def create_track_automation(song, track_index, parameter_name, automation_points
                 "No arrangement clip covers time {0}. Clip ranges: [{1}]".format(
                     t_min, ", ".join(ranges)))
 
+        # Validate all points against clip bounds
+        clip_start = target_clip.start_time if hasattr(target_clip, "start_time") else 0.0
+        clip_end = target_clip.end_time if hasattr(target_clip, "end_time") else (clip_start + target_clip.length)
+        t_max = max(times)
+        if t_max >= clip_end:
+            raise ValueError(
+                "Automation point at time {0} exceeds clip end {1}. "
+                "All points must fall within clip range [{2}, {3})".format(
+                    t_max, clip_end, clip_start, clip_end))
+
         # Get or create the automation envelope on that clip
         envelope = None
         if hasattr(target_clip, "automation_envelope"):
@@ -300,7 +310,7 @@ def create_track_automation(song, track_index, parameter_name, automation_points
             )
 
         for point in automation_points:
-            time_val = float(point["time"])
+            time_val = max(clip_start, min(clip_end - 0.001, float(point["time"])))
             value = max(parameter.min, min(parameter.max, float(point["value"])))
             envelope.insert_step(time_val, 0.0, value)
 

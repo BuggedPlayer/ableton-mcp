@@ -3220,24 +3220,39 @@ def _resolve_sample_uri(uri_or_name: str) -> str:
             return item["uri"]
 
     # --- Cache miss: live lookup of user_library subfolders ---
+    _MAX_LIVE_LOOKUP_FOLDERS = 10
     try:
         logger.info("Sample '%s' not in cache, trying live User Library lookup", uri_or_name)
         ableton = get_ableton_connection()
         result = ableton.send_command("get_browser_items_at_path",
                                       {"path": "user_library"}, timeout=10.0)
+        folder_count = 0
         for sub in result.get("items", []):
-            if sub.get("is_folder"):
-                sub_result = ableton.send_command(
-                    "get_browser_items_at_path",
-                    {"path": "user_library/" + sub["name"]},
-                    timeout=10.0,
-                )
-                for item in sub_result.get("items", []):
-                    item_name = item.get("name", "").lower()
-                    if name_lower in item_name and item.get("uri"):
-                        logger.info("Resolved sample '%s' via live lookup to '%s'",
-                                    uri_or_name, item["uri"])
-                        return item["uri"]
+            if not sub.get("is_folder"):
+                # Check non-folder items at root level too
+                item_name = sub.get("name", "").lower()
+                if name_lower in item_name and sub.get("uri"):
+                    logger.info("Resolved sample '%s' via live lookup to '%s'",
+                                uri_or_name, sub["uri"])
+                    return sub["uri"]
+                continue
+            if folder_count >= _MAX_LIVE_LOOKUP_FOLDERS:
+                break
+            folder_count += 1
+            time.sleep(0.05)
+            sub_result = ableton.send_command(
+                "get_browser_items_at_path",
+                {"path": "user_library/" + sub["name"]},
+                timeout=10.0,
+            )
+            for item in sub_result.get("items", []):
+                if item.get("is_folder"):
+                    continue
+                item_name = item.get("name", "").lower()
+                if name_lower in item_name and item.get("uri"):
+                    logger.info("Resolved sample '%s' via live lookup to '%s'",
+                                uri_or_name, item["uri"])
+                    return item["uri"]
     except Exception as exc:
         logger.warning("Live User Library lookup failed: %s", exc)
 
