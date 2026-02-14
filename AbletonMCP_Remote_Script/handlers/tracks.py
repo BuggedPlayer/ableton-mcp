@@ -2,14 +2,13 @@
 
 from __future__ import absolute_import, print_function, unicode_literals
 
+from ._helpers import get_track, get_clip
+
 
 def get_track_info(song, track_index, ctrl=None):
     """Get information about a track."""
     try:
-        if track_index < 0 or track_index >= len(song.tracks):
-            raise IndexError("Track index out of range")
-
-        track = song.tracks[track_index]
+        track = get_track(song, track_index)
 
         # Get clip slots
         clip_slots = []
@@ -170,9 +169,7 @@ def create_audio_track(song, index, ctrl=None):
 def set_track_name(song, track_index, name, ctrl=None):
     """Set the name of a track."""
     try:
-        if track_index < 0 or track_index >= len(song.tracks):
-            raise IndexError("Track index out of range")
-        track = song.tracks[track_index]
+        track = get_track(song, track_index)
         track.name = name
         return {"name": track.name}
     except Exception as e:
@@ -184,9 +181,7 @@ def set_track_name(song, track_index, name, ctrl=None):
 def delete_track(song, track_index, ctrl=None):
     """Delete a track from the session."""
     try:
-        if track_index < 0 or track_index >= len(song.tracks):
-            raise IndexError("Track index out of range")
-        track = song.tracks[track_index]
+        track = get_track(song, track_index)
         track_name = track.name
         song.delete_track(track_index)
         return {
@@ -203,9 +198,7 @@ def delete_track(song, track_index, ctrl=None):
 def duplicate_track(song, track_index, ctrl=None):
     """Duplicate a track with all its devices and clips."""
     try:
-        if track_index < 0 or track_index >= len(song.tracks):
-            raise IndexError("Track index out of range")
-        track = song.tracks[track_index]
+        track = get_track(song, track_index)
         source_name = track.name
         song.duplicate_track(track_index)
         new_track_index = track_index + 1
@@ -242,9 +235,7 @@ def create_return_track(song, ctrl=None):
 def set_track_color(song, track_index, color_index, ctrl=None):
     """Set track color."""
     try:
-        if track_index < 0 or track_index >= len(song.tracks):
-            raise IndexError("Track index out of range")
-        track = song.tracks[track_index]
+        track = get_track(song, track_index)
         track.color_index = color_index
         return {"track_index": track_index, "color_index": track.color_index}
     except Exception as e:
@@ -256,9 +247,7 @@ def set_track_color(song, track_index, color_index, ctrl=None):
 def arm_track(song, track_index, ctrl=None):
     """Arm a track for recording."""
     try:
-        if track_index < 0 or track_index >= len(song.tracks):
-            raise IndexError("Track index out of range")
-        track = song.tracks[track_index]
+        track = get_track(song, track_index)
         if not track.can_be_armed:
             raise Exception("Track cannot be armed (may be a group track or lack input)")
         track.arm = True
@@ -276,9 +265,7 @@ def arm_track(song, track_index, ctrl=None):
 def disarm_track(song, track_index, ctrl=None):
     """Disarm a track from recording."""
     try:
-        if track_index < 0 or track_index >= len(song.tracks):
-            raise IndexError("Track index out of range")
-        track = song.tracks[track_index]
+        track = get_track(song, track_index)
         track.arm = False
         return {
             "track_index": track_index,
@@ -379,9 +366,7 @@ def get_return_tracks_info(song, ctrl=None):
 def get_track_routing(song, track_index, ctrl=None):
     """Get current input/output routing and available options for a track."""
     try:
-        if track_index < 0 or track_index >= len(song.tracks):
-            raise IndexError("Track index out of range")
-        track = song.tracks[track_index]
+        track = get_track(song, track_index)
         result = {
             "track_index": track_index,
             "track_name": track.name,
@@ -431,9 +416,7 @@ def set_track_monitoring(song, track_index, state, ctrl=None):
         state: 0=IN (always monitor), 1=AUTO (monitor when armed), 2=OFF (never monitor)
     """
     try:
-        if track_index < 0 or track_index >= len(song.tracks):
-            raise IndexError("Track index out of range")
-        track = song.tracks[track_index]
+        track = get_track(song, track_index)
         state = int(state)
         if state < 0 or state > 2:
             raise ValueError("Monitoring state must be 0 (IN), 1 (AUTO), or 2 (OFF)")
@@ -452,15 +435,7 @@ def set_track_monitoring(song, track_index, state, ctrl=None):
 def create_midi_track_with_simpler(song, track_index, clip_index, ctrl=None):
     """Create a new MIDI track with a Simpler containing an audio clip's sample."""
     try:
-        if track_index < 0 or track_index >= len(song.tracks):
-            raise IndexError("Track index out of range")
-        track = song.tracks[track_index]
-        if clip_index < 0 or clip_index >= len(track.clip_slots):
-            raise IndexError("Clip index out of range")
-        clip_slot = track.clip_slots[clip_index]
-        if not clip_slot.has_clip:
-            raise Exception("No clip in slot")
-        clip = clip_slot.clip
+        _, clip = get_clip(song, track_index, clip_index)
         if not clip.is_audio_clip:
             raise ValueError("Clip is not an audio clip")
         try:
@@ -484,8 +459,7 @@ def get_track_meters(song, track_index=None, ctrl=None):
     try:
         tracks_data = []
         if track_index is not None:
-            if track_index < 0 or track_index >= len(song.tracks):
-                raise IndexError("Track index out of range")
+            get_track(song, track_index)  # validate bounds
             indices = [track_index]
         else:
             indices = range(len(song.tracks))
@@ -528,9 +502,7 @@ def set_track_fold(song, track_index, fold_state, ctrl=None):
         fold_state: True to fold (collapse), False to unfold (expand).
     """
     try:
-        if track_index < 0 or track_index >= len(song.tracks):
-            raise IndexError("Track index out of range")
-        track = song.tracks[track_index]
+        track = get_track(song, track_index)
         if not track.is_foldable:
             raise Exception("Track '{0}' is not a group track (not foldable)".format(track.name))
         track.fold_state = bool(fold_state)
@@ -556,9 +528,7 @@ def set_track_routing(song, track_index, input_type=None, input_channel=None,
         output_channel: Display name of output channel
     """
     try:
-        if track_index < 0 or track_index >= len(song.tracks):
-            raise IndexError("Track index out of range")
-        track = song.tracks[track_index]
+        track = get_track(song, track_index)
         changes = {}
         if input_type is not None:
             for rt in track.available_input_routing_types:
@@ -607,9 +577,7 @@ def set_track_routing(song, track_index, input_type=None, input_channel=None,
 def get_take_lanes(song, track_index, ctrl=None):
     """Get take lanes for a track (used for comping in Arrangement)."""
     try:
-        if track_index < 0 or track_index >= len(song.tracks):
-            raise IndexError("Track index out of range")
-        track = song.tracks[track_index]
+        track = get_track(song, track_index)
         lanes = []
         try:
             for i, lane in enumerate(track.take_lanes):
@@ -646,9 +614,7 @@ def get_take_lanes(song, track_index, ctrl=None):
 def create_take_lane(song, track_index, ctrl=None):
     """Create a new take lane for a track."""
     try:
-        if track_index < 0 or track_index >= len(song.tracks):
-            raise IndexError("Track index out of range")
-        track = song.tracks[track_index]
+        track = get_track(song, track_index)
         track.create_take_lane()
         lane_count = len(list(track.take_lanes))
         return {
@@ -675,9 +641,7 @@ def insert_device(song, track_index, device_name, target_index=None, ctrl=None):
     Note: Only native Live devices are supported. M4L and plugins are not.
     """
     try:
-        if track_index < 0 or track_index >= len(song.tracks):
-            raise IndexError("Track index out of range")
-        track = song.tracks[track_index]
+        track = get_track(song, track_index)
         if target_index is not None:
             track.insert_device(str(device_name), int(target_index))
         else:

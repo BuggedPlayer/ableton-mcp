@@ -2,20 +2,13 @@
 
 from __future__ import absolute_import, print_function, unicode_literals
 
+from ._helpers import get_track, get_clip
+
 
 def duplicate_clip_to_arrangement(song, track_index, clip_index, time, ctrl=None):
     """Copy a session clip to the arrangement timeline."""
     try:
-        if track_index < 0 or track_index >= len(song.tracks):
-            raise IndexError("Track index out of range")
-        track = song.tracks[track_index]
-
-        if clip_index < 0 or clip_index >= len(track.clip_slots):
-            raise IndexError("Clip index out of range")
-        clip_slot = track.clip_slots[clip_index]
-        if not clip_slot.has_clip:
-            raise Exception("No clip in slot")
-        clip = clip_slot.clip
+        track, clip = get_clip(song, track_index, clip_index)
 
         if not hasattr(track, 'duplicate_clip_to_arrangement'):
             raise Exception("duplicate_clip_to_arrangement requires Live 11 or later")
@@ -38,9 +31,7 @@ def duplicate_clip_to_arrangement(song, track_index, clip_index, time, ctrl=None
 def get_arrangement_clips(song, track_index, ctrl=None):
     """Get all clips in arrangement view for a track."""
     try:
-        if track_index < 0 or track_index >= len(song.tracks):
-            raise IndexError("Track index out of range")
-        track = song.tracks[track_index]
+        track = get_track(song, track_index)
 
         if not hasattr(track, "arrangement_clips"):
             raise Exception(

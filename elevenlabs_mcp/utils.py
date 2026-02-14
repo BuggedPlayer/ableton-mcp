@@ -37,7 +37,9 @@ def make_output_file(
         tool, id_safe, datetime.now().strftime('%Y%m%d_%H%M%S'), extension)
     output_file = (output_path / output_file_name).resolve()
     # Ensure the file stays within the output directory
-    if not str(output_file).startswith(str(output_path.resolve())):
+    try:
+        output_file.relative_to(output_path.resolve())
+    except ValueError:
         raise ElevenLabsMcpError(
             "Generated filename escapes output directory")
     return output_file
@@ -51,7 +53,9 @@ def make_output_path(
     elif not os.path.isabs(output_directory) and base_path:
         resolved_base = Path(os.path.expanduser(base_path)).resolve()
         output_path = (resolved_base / Path(output_directory)).resolve()
-        if not str(output_path).startswith(str(resolved_base)):
+        try:
+            output_path.relative_to(resolved_base)
+        except ValueError:
             make_error(
                 "Output directory ({0}) escapes base path ({1})".format(
                     output_directory, resolved_base))
@@ -138,7 +142,9 @@ def handle_input_file(file_path: str, audio_content_check: bool = True) -> Path:
     if not os.path.isabs(file_path) and base_path:
         resolved_base = Path(os.path.expanduser(base_path)).resolve()
         path = (resolved_base / Path(file_path)).resolve()
-        if not str(path).startswith(str(resolved_base)):
+        try:
+            path.relative_to(resolved_base)
+        except ValueError:
             make_error(
                 "File path ({0}) escapes base path ({1})".format(
                     file_path, resolved_base))

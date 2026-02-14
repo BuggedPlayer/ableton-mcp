@@ -1,14 +1,13 @@
 """Mixer: volume, pan, mute, solo, arm, sends, return tracks, master."""
 
 from __future__ import absolute_import, print_function, unicode_literals
+from ._helpers import get_track
 
 
 def set_track_volume(song, track_index, volume, ctrl=None):
     """Set track volume."""
     try:
-        if track_index < 0 or track_index >= len(song.tracks):
-            raise IndexError("Track index out of range")
-        track = song.tracks[track_index]
+        track = get_track(song, track_index)
         volume_param = track.mixer_device.volume
         clamped = max(volume_param.min, min(volume_param.max, volume))
         volume_param.value = clamped
@@ -22,9 +21,7 @@ def set_track_volume(song, track_index, volume, ctrl=None):
 def set_track_pan(song, track_index, pan, ctrl=None):
     """Set track panning."""
     try:
-        if track_index < 0 or track_index >= len(song.tracks):
-            raise IndexError("Track index out of range")
-        track = song.tracks[track_index]
+        track = get_track(song, track_index)
         pan_param = track.mixer_device.panning
         clamped = max(pan_param.min, min(pan_param.max, pan))
         pan_param.value = clamped
@@ -38,9 +35,7 @@ def set_track_pan(song, track_index, pan, ctrl=None):
 def set_track_mute(song, track_index, mute, ctrl=None):
     """Set track mute state."""
     try:
-        if track_index < 0 or track_index >= len(song.tracks):
-            raise IndexError("Track index out of range")
-        track = song.tracks[track_index]
+        track = get_track(song, track_index)
         track.mute = mute
         return {"track_index": track_index, "mute": track.mute}
     except Exception as e:
@@ -52,9 +47,7 @@ def set_track_mute(song, track_index, mute, ctrl=None):
 def set_track_solo(song, track_index, solo, ctrl=None):
     """Set track solo state."""
     try:
-        if track_index < 0 or track_index >= len(song.tracks):
-            raise IndexError("Track index out of range")
-        track = song.tracks[track_index]
+        track = get_track(song, track_index)
         track.solo = solo
         return {"track_index": track_index, "solo": track.solo}
     except Exception as e:
@@ -66,9 +59,7 @@ def set_track_solo(song, track_index, solo, ctrl=None):
 def set_track_arm(song, track_index, arm, ctrl=None):
     """Set the arm (record enable) state of a track."""
     try:
-        if track_index < 0 or track_index >= len(song.tracks):
-            raise IndexError("Track index out of range")
-        track = song.tracks[track_index]
+        track = get_track(song, track_index)
         if not track.can_be_armed:
             raise Exception("Track cannot be armed (group track or no input)")
         track.arm = bool(arm)
@@ -82,9 +73,7 @@ def set_track_arm(song, track_index, arm, ctrl=None):
 def set_track_send(song, track_index, send_index, value, ctrl=None):
     """Set the send level from a track to a return track."""
     try:
-        if track_index < 0 or track_index >= len(song.tracks):
-            raise IndexError("Track index out of range")
-        track = song.tracks[track_index]
+        track = get_track(song, track_index)
         sends = track.mixer_device.sends
         if send_index < 0 or send_index >= len(sends):
             raise IndexError("Send index out of range")
@@ -109,9 +98,7 @@ def set_track_send(song, track_index, send_index, value, ctrl=None):
 def set_return_track_volume(song, return_track_index, volume, ctrl=None):
     """Set the volume of a return track."""
     try:
-        if return_track_index < 0 or return_track_index >= len(song.return_tracks):
-            raise IndexError("Return track index out of range")
-        return_track = song.return_tracks[return_track_index]
+        return_track = get_track(song, return_track_index, "return")
         volume_param = return_track.mixer_device.volume
         clamped = max(volume_param.min, min(volume_param.max, volume))
         volume_param.value = clamped
@@ -128,9 +115,7 @@ def set_return_track_volume(song, return_track_index, volume, ctrl=None):
 def set_return_track_pan(song, return_track_index, pan, ctrl=None):
     """Set the panning of a return track."""
     try:
-        if return_track_index < 0 or return_track_index >= len(song.return_tracks):
-            raise IndexError("Return track index out of range")
-        return_track = song.return_tracks[return_track_index]
+        return_track = get_track(song, return_track_index, "return")
         pan_param = return_track.mixer_device.panning
         clamped = max(pan_param.min, min(pan_param.max, pan))
         pan_param.value = clamped
@@ -147,9 +132,7 @@ def set_return_track_pan(song, return_track_index, pan, ctrl=None):
 def set_return_track_mute(song, return_track_index, mute, ctrl=None):
     """Set the mute state of a return track."""
     try:
-        if return_track_index < 0 or return_track_index >= len(song.return_tracks):
-            raise IndexError("Return track index out of range")
-        return_track = song.return_tracks[return_track_index]
+        return_track = get_track(song, return_track_index, "return")
         return_track.mute = mute
         return {
             "return_track_index": return_track_index,
@@ -164,9 +147,7 @@ def set_return_track_mute(song, return_track_index, mute, ctrl=None):
 def set_return_track_solo(song, return_track_index, solo, ctrl=None):
     """Set the solo state of a return track."""
     try:
-        if return_track_index < 0 or return_track_index >= len(song.return_tracks):
-            raise IndexError("Return track index out of range")
-        return_track = song.return_tracks[return_track_index]
+        return_track = get_track(song, return_track_index, "return")
         return_track.solo = solo
         return {
             "return_track_index": return_track_index,
@@ -287,9 +268,7 @@ def get_return_track_info(song, return_track_index, ctrl=None):
     """Get detailed information about a specific return track."""
     try:
         from . import devices as dev_mod
-        if return_track_index < 0 or return_track_index >= len(song.return_tracks):
-            raise IndexError("Return track index out of range")
-        track = song.return_tracks[return_track_index]
+        track = get_track(song, return_track_index, "return")
         devices = []
         for device_index, device in enumerate(track.devices):
             devices.append({

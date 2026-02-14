@@ -1108,24 +1108,20 @@ function handleSetSimplerSampleProps(args) {
         return;
     }
 
-    // Settable sample properties
-    var settable = [
-        "start_marker", "end_marker", "warping", "warp_mode",
-        "slicing_sensitivity", "gain",
-        "beats_granulation_resolution", "beats_transient_envelope", "beats_transient_loop_mode",
-        "texture_flux", "texture_grain_size", "tones_grain_size",
-        "complex_pro_envelope", "complex_pro_formants"
-    ];
+    // Settable sample properties (object map for O(1) lookup)
+    var _simplerSettable = {
+        "start_marker":1, "end_marker":1, "warping":1, "warp_mode":1,
+        "slicing_sensitivity":1, "gain":1,
+        "beats_granulation_resolution":1, "beats_transient_envelope":1, "beats_transient_loop_mode":1,
+        "texture_flux":1, "texture_grain_size":1, "tones_grain_size":1,
+        "complex_pro_envelope":1, "complex_pro_formants":1
+    };
 
     var setCount = 0;
     var errors = [];
     for (var key in props) {
         if (!props.hasOwnProperty(key)) continue;
-        var found = false;
-        for (var s = 0; s < settable.length; s++) {
-            if (settable[s] === key) { found = true; break; }
-        }
-        if (!found) {
+        if (!_simplerSettable[key]) {
             errors.push({ property: key, error: "not a settable property" });
             continue;
         }
@@ -2509,16 +2505,14 @@ function setDeviceProperty(trackIdx, deviceIdx, propertyName, value) {
         return { error: "No device found at track " + trackIdx + " device " + deviceIdx + "." };
     }
 
-    var READONLY = [
-        "class_name", "class_display_name", "type",
-        "can_have_chains", "can_have_drum_pads",
-        "canonical_parent", "view", "parameters",
-        "is_active"
-    ];
-    for (var r = 0; r < READONLY.length; r++) {
-        if (propertyName === READONLY[r]) {
-            return { error: "Property '" + propertyName + "' is read-only and cannot be set." };
-        }
+    var _readonlyMap = {
+        "class_name":1, "class_display_name":1, "type":1,
+        "can_have_chains":1, "can_have_drum_pads":1,
+        "canonical_parent":1, "view":1, "parameters":1,
+        "is_active":1
+    };
+    if (_readonlyMap[propertyName]) {
+        return { error: "Property '" + propertyName + "' is read-only and cannot be set." };
     }
 
     try {
@@ -2745,18 +2739,14 @@ function handleSetGrooveProperties(args) {
             return;
         }
 
-        var settable = ["base", "timing", "velocity", "random", "quantize_rate"];
+        var _grooveSettable = {"base":1, "timing":1, "velocity":1, "random":1, "quantize_rate":1};
         var setCount = 0;
         var errors = [];
         var details = [];
 
         for (var key in props) {
             if (!props.hasOwnProperty(key)) continue;
-            var found = false;
-            for (var s = 0; s < settable.length; s++) {
-                if (settable[s] === key) { found = true; break; }
-            }
-            if (!found) {
+            if (!_grooveSettable[key]) {
                 errors.push({ property: key, error: "not a settable property" });
                 continue;
             }

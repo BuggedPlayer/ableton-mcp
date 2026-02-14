@@ -12,6 +12,7 @@ import base64
 import struct
 import math
 import os
+import gzip
 import threading
 import functools
 from collections import deque
@@ -652,18 +653,17 @@ class M4LConnection:
 
         # The OSC address is our base64-encoded JSON response
         # (udpsend uses the outlet symbol as the OSC address)
-        # Try standard base64 first
+        # URL-safe base64 is the common path (v2.0.0+ bridge)
         try:
-            decoded = base64.b64decode(osc_address).decode("utf-8")
+            padded = osc_address + "=" * (-len(osc_address) % 4)
+            decoded = base64.urlsafe_b64decode(padded).decode("utf-8")
             return json.loads(decoded)
         except (ValueError, base64.binascii.Error, json.JSONDecodeError, UnicodeDecodeError):
             pass
 
-        # Try URL-safe base64 with padding restoration
-        # (the v2.0.0 bridge uses _toUrlSafe: + → -, / → _, strips =)
+        # Fallback: try standard base64
         try:
-            padded = osc_address + "=" * (-len(osc_address) % 4)
-            decoded = base64.urlsafe_b64decode(padded).decode("utf-8")
+            decoded = base64.b64decode(osc_address).decode("utf-8")
             return json.loads(decoded)
         except (ValueError, base64.binascii.Error, json.JSONDecodeError, UnicodeDecodeError):
             pass
@@ -680,14 +680,13 @@ class M4LConnection:
         # Remove trailing comma from OSC type tag
         text = text.rstrip(",").strip()
         try:
-            decoded = base64.b64decode(text).decode("utf-8")
+            padded = text + "=" * (-len(text) % 4)
+            decoded = base64.urlsafe_b64decode(padded).decode("utf-8")
             return json.loads(decoded)
         except (ValueError, base64.binascii.Error, json.JSONDecodeError, UnicodeDecodeError):
             pass
-        # Also try URL-safe on cleaned text
         try:
-            padded = text + "=" * (-len(text) % 4)
-            decoded = base64.urlsafe_b64decode(padded).decode("utf-8")
+            decoded = base64.b64decode(text).decode("utf-8")
             return json.loads(decoded)
         except (ValueError, base64.binascii.Error, json.JSONDecodeError, UnicodeDecodeError):
             pass
@@ -1003,7 +1002,8 @@ _BROWSER_CACHE_TTL = 604800.0  # 7 days — only refresh_browser_cache forces a 
 _browser_cache_lock = threading.Lock()
 _browser_cache_populating = False  # prevents duplicate scans
 _BROWSER_DISK_CACHE_DIR = os.path.join(os.path.expanduser("~"), ".ableton-mcp")
-_BROWSER_DISK_CACHE_PATH = os.path.join(_BROWSER_DISK_CACHE_DIR, "browser_cache.json")
+_BROWSER_DISK_CACHE_PATH = os.path.join(_BROWSER_DISK_CACHE_DIR, "browser_cache.json.gz")
+_BROWSER_DISK_CACHE_PATH_LEGACY = os.path.join(_BROWSER_DISK_CACHE_DIR, "browser_cache.json")
 _BROWSER_DISK_CACHE_MAX_AGE = 604800.0  # 7 days — disk cache ignored if older
 
 # Dynamic device URI map — built from browser cache after each scan.
@@ -1103,10 +1103,16 @@ def _save_browser_cache_to_disk() -> bool:
 
         os.makedirs(_BROWSER_DISK_CACHE_DIR, exist_ok=True)
         tmp_path = _BROWSER_DISK_CACHE_PATH + ".tmp"
-        with open(tmp_path, "w", encoding="utf-8") as f:
+        with gzip.open(tmp_path, "wt", encoding="utf-8") as f:
             json.dump(data, f, separators=(",", ":"))
         os.replace(tmp_path, _BROWSER_DISK_CACHE_PATH)
-        logger.info("Browser cache saved to disk (%d items)", len(data["flat"]))
+        # Remove legacy uncompressed cache if it exists
+        if os.path.exists(_BROWSER_DISK_CACHE_PATH_LEGACY):
+            try:
+                os.remove(_BROWSER_DISK_CACHE_PATH_LEGACY)
+            except OSError:
+                pass
+        logger.info("Browser cache saved to disk (%d items, gzip)", len(data["flat"]))
         return True
     except Exception as e:
         logger.warning("Failed to save browser cache to disk: %s", e)
@@ -1121,11 +1127,17 @@ def _load_browser_cache_from_disk() -> bool:
     global _browser_cache_flat, _browser_cache_by_category, _browser_cache_timestamp, _device_uri_map
 
     try:
-        if not os.path.exists(_BROWSER_DISK_CACHE_PATH):
+        cache_path = None
+        if os.path.exists(_BROWSER_DISK_CACHE_PATH):
+            cache_path = _BROWSER_DISK_CACHE_PATH
+        elif os.path.exists(_BROWSER_DISK_CACHE_PATH_LEGACY):
+            cache_path = _BROWSER_DISK_CACHE_PATH_LEGACY
+        if cache_path is None:
             logger.info("No disk cache found")
             return False
 
-        with open(_BROWSER_DISK_CACHE_PATH, "r", encoding="utf-8") as f:
+        opener = gzip.open if cache_path.endswith(".gz") else open
+        with opener(cache_path, "rt", encoding="utf-8") as f:
             data = json.load(f)
 
         if not isinstance(data, dict) or data.get("version") != 1:

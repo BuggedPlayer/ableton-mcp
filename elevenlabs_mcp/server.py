@@ -69,8 +69,11 @@ def _get_client():
             )
         custom = httpx.Client(
             headers={"User-Agent": f"ElevenLabs-MCP/{__version__}"},
+            timeout=httpx.Timeout(60.0, connect=10.0),
         )
         _client = ElevenLabs(api_key=api_key, httpx_client=custom)
+        import atexit
+        atexit.register(lambda: custom.close())
     return _client
 
 mcp = FastMCP("ElevenLabs")
@@ -128,10 +131,10 @@ def text_to_speech(
             "speed": speed,
         },
     )
-    audio_bytes = b"".join(audio_data)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with open(output_path / output_file_name, "wb") as f:
-        f.write(audio_bytes)
+        for chunk in audio_data:
+            f.write(chunk)
 
     return TextContent(
         type="text",
@@ -222,10 +225,9 @@ def text_to_sound_effects(
         output_format="mp3_44100_128",
         duration_seconds=duration_seconds,
     )
-    audio_bytes = b"".join(audio_data)
-
     with open(output_path / output_file_name, "wb") as f:
-        f.write(audio_bytes)
+        for chunk in audio_data:
+            f.write(chunk)
 
     return TextContent(
         type="text",
@@ -282,8 +284,10 @@ def get_voice(voice_id: str) -> McpVoice:
 def voice_clone(
     name: str, files: list[str], description: str = None
 ) -> TextContent:
-    input_files = [open(str(handle_input_file(file).absolute()), "rb") for file in files]
+    input_files = []
     try:
+        for file in files:
+            input_files.append(open(str(handle_input_file(file).absolute()), "rb"))
         response = _get_client().voices.ivc.create(
             name=name,
             description=description,
@@ -316,10 +320,9 @@ def isolate_audio(
     audio_data = _get_client().audio_isolation.convert(
         audio=audio_bytes,
     )
-    audio_bytes = b"".join(audio_data)
-
     with open(output_path / output_file_name, "wb") as f:
-        f.write(audio_bytes)
+        for chunk in audio_data:
+            f.write(chunk)
 
     return TextContent(
         type="text",
@@ -548,10 +551,9 @@ def speech_to_speech(
         audio=audio_bytes,
     )
 
-    audio_bytes = b"".join(audio_data)
-
     with open(output_path / output_file_name, "wb") as f:
-        f.write(audio_bytes)
+        for chunk in audio_data:
+            f.write(chunk)
 
     return TextContent(
         type="text", text=f"Success. File saved as: {output_path / output_file_name}"

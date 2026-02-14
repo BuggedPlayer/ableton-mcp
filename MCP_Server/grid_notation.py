@@ -15,6 +15,12 @@ And this module converts it to MIDI note events, or vice versa.
 import re
 from typing import Optional
 
+# Pre-compiled patterns for grid line parsing
+_RE_DRUM_LINE = re.compile(r'^([A-Z]+)\s*\|(.+)', re.IGNORECASE)
+_RE_DRUM_LABEL_ONLY = re.compile(r'^([A-Z]+)\s*\|', re.IGNORECASE)
+_RE_MELODIC_NOTE = re.compile(r'^([A-Ga-g][#b]?)(\d+)?\s*\|(.+)')
+_RE_NUMERIC_PITCH = re.compile(r'^(\d+)\s*\|(.+)')
+
 
 # =============================================================================
 # DRUM CHANNEL MAPPINGS
@@ -132,7 +138,7 @@ def parse_drum_grid(grid: str, steps_per_beat: int = 4) -> list[dict]:
             continue
 
         # Parse "LABEL|pattern|pattern|..."
-        match = re.match(r'^([A-Z]+)\s*\|(.+)', line, re.IGNORECASE)
+        match = _RE_DRUM_LINE.match(line)
         if not match:
             continue
 
@@ -194,10 +200,10 @@ def parse_melodic_grid(grid: str, base_octave: int = 4, steps_per_beat: int = 4)
             continue
 
         # Parse label: "C4|..." or "C|..." or "60|..."
-        match = re.match(r'^([A-Ga-g][#b]?)(\d+)?\s*\|(.+)', line)
+        match = _RE_MELODIC_NOTE.match(line)
         if not match:
             # Try numeric pitch
-            match = re.match(r'^(\d+)\s*\|(.+)', line)
+            match = _RE_NUMERIC_PITCH.match(line)
             if match:
                 pitch = int(match.group(1))
                 pattern_str = match.group(2)
@@ -327,13 +333,13 @@ def notes_to_drum_grid(
                     row[step] = '.'
 
         # Format with bar separators
-        formatted = f"{label}|"
+        parts = [label, '|']
+        bar_width = 4 * steps_per_beat
         for i, char in enumerate(row):
-            formatted += char
-            if (i + 1) % (4 * steps_per_beat) == 0:
-                formatted += '|'
-
-        lines.append(formatted)
+            parts.append(char)
+            if (i + 1) % bar_width == 0:
+                parts.append('|')
+        lines.append("".join(parts))
 
     # Add beat markers
     beat_line = "  |"
@@ -407,13 +413,13 @@ def notes_to_melodic_grid(
                     row[start_step + i] = symbol
 
         # Format with bar separators
-        formatted = f"{label}|"
+        parts = [label, '|']
+        bar_width = 4 * steps_per_beat
         for i, char in enumerate(row):
-            formatted += char
-            if (i + 1) % (4 * steps_per_beat) == 0:
-                formatted += '|'
-
-        lines.append(formatted)
+            parts.append(char)
+            if (i + 1) % bar_width == 0:
+                parts.append('|')
+        lines.append("".join(parts))
 
     # Add beat markers
     beat_line = "   |"
@@ -438,20 +444,21 @@ def is_drum_track(notes: list[dict]) -> bool:
     """
     Detect if notes are likely from a drum track.
     Combines GM drum pitch matching with temporal heuristics.
+    Single-pass over notes for efficiency.
     """
     if not notes or len(notes) < 2:
         return False
 
-    pitches = [n.get('pitch', 60) for n in notes]
-    unique_pitches = set(pitches)
-    fraction_in_gm = sum(1 for p in unique_pitches if p in _GM_DRUM_PITCHES) / len(unique_pitches)
-
-    # Extract durations
+    # Single pass: collect unique pitches and durations together
+    unique_pitches = set()
     durations = []
     for n in notes:
+        unique_pitches.add(n.get('pitch', 60))
         d = float(n.get('duration', n.get('end', 0) - n.get('start', 0)))
         if d > 0:
             durations.append(d)
+
+    fraction_in_gm = sum(1 for p in unique_pitches if p in _GM_DRUM_PITCHES) / len(unique_pitches)
 
     if not durations:
         return fraction_in_gm >= 0.8 and len(unique_pitches) > 1
@@ -513,7 +520,7 @@ def parse_grid(grid: str, is_drums: bool = None, steps_per_beat: int = 4) -> lis
     if is_drums is None:
         lines = grid.strip().split('\n')
         for line in lines:
-            match = re.match(r'^([A-Z]+)\s*\|', line, re.IGNORECASE)
+            match = _RE_DRUM_LABEL_ONLY.match(line)
             if match:
                 label = match.group(1).upper()
                 if label in DRUM_LABELS:

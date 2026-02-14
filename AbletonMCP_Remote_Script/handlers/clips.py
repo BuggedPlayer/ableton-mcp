@@ -4,16 +4,13 @@ from __future__ import absolute_import, print_function, unicode_literals
 
 import collections.abc
 
+from ._helpers import get_track, get_clip_slot, get_clip
+
 
 def create_clip(song, track_index, clip_index, length, ctrl=None):
     """Create a new MIDI clip in the specified track and clip slot."""
     try:
-        if track_index < 0 or track_index >= len(song.tracks):
-            raise IndexError("Track index out of range")
-        track = song.tracks[track_index]
-        if clip_index < 0 or clip_index >= len(track.clip_slots):
-            raise IndexError("Clip index out of range")
-        clip_slot = track.clip_slots[clip_index]
+        track, clip_slot = get_clip_slot(song, track_index, clip_index)
         if clip_slot.has_clip:
             raise Exception("Clip slot already has a clip")
         length = float(length)
@@ -33,15 +30,7 @@ def create_clip(song, track_index, clip_index, length, ctrl=None):
 def add_notes_to_clip(song, track_index, clip_index, notes, ctrl=None):
     """Add MIDI notes to a clip."""
     try:
-        if track_index < 0 or track_index >= len(song.tracks):
-            raise IndexError("Track index out of range")
-        track = song.tracks[track_index]
-        if clip_index < 0 or clip_index >= len(track.clip_slots):
-            raise IndexError("Clip index out of range")
-        clip_slot = track.clip_slots[clip_index]
-        if not clip_slot.has_clip:
-            raise Exception("No clip in slot")
-        clip = clip_slot.clip
+        _, clip = get_clip(song, track_index, clip_index)
 
         # Validate and normalize note data
         note_specs = []
@@ -101,15 +90,7 @@ def add_notes_to_clip(song, track_index, clip_index, notes, ctrl=None):
 def set_clip_name(song, track_index, clip_index, name, ctrl=None):
     """Set the name of a clip."""
     try:
-        if track_index < 0 or track_index >= len(song.tracks):
-            raise IndexError("Track index out of range")
-        track = song.tracks[track_index]
-        if clip_index < 0 or clip_index >= len(track.clip_slots):
-            raise IndexError("Clip index out of range")
-        clip_slot = track.clip_slots[clip_index]
-        if not clip_slot.has_clip:
-            raise Exception("No clip in slot")
-        clip = clip_slot.clip
+        _, clip = get_clip(song, track_index, clip_index)
         clip.name = name
         return {"name": clip.name}
     except Exception as e:
@@ -121,12 +102,7 @@ def set_clip_name(song, track_index, clip_index, name, ctrl=None):
 def fire_clip(song, track_index, clip_index, ctrl=None):
     """Fire a clip."""
     try:
-        if track_index < 0 or track_index >= len(song.tracks):
-            raise IndexError("Track index out of range")
-        track = song.tracks[track_index]
-        if clip_index < 0 or clip_index >= len(track.clip_slots):
-            raise IndexError("Clip index out of range")
-        clip_slot = track.clip_slots[clip_index]
+        _, clip_slot = get_clip_slot(song, track_index, clip_index)
         if not clip_slot.has_clip:
             raise Exception("No clip in slot")
         clip_slot.fire()
@@ -140,12 +116,7 @@ def fire_clip(song, track_index, clip_index, ctrl=None):
 def stop_clip(song, track_index, clip_index, ctrl=None):
     """Stop a clip."""
     try:
-        if track_index < 0 or track_index >= len(song.tracks):
-            raise IndexError("Track index out of range")
-        track = song.tracks[track_index]
-        if clip_index < 0 or clip_index >= len(track.clip_slots):
-            raise IndexError("Clip index out of range")
-        clip_slot = track.clip_slots[clip_index]
+        _, clip_slot = get_clip_slot(song, track_index, clip_index)
         clip_slot.stop()
         return {"stopped": True}
     except Exception as e:
@@ -157,12 +128,7 @@ def stop_clip(song, track_index, clip_index, ctrl=None):
 def delete_clip(song, track_index, clip_index, ctrl=None):
     """Delete a clip from a clip slot."""
     try:
-        if track_index < 0 or track_index >= len(song.tracks):
-            raise IndexError("Track index out of range")
-        track = song.tracks[track_index]
-        if clip_index < 0 or clip_index >= len(track.clip_slots):
-            raise IndexError("Clip index out of range")
-        clip_slot = track.clip_slots[clip_index]
+        _, clip_slot = get_clip_slot(song, track_index, clip_index)
         if not clip_slot.has_clip:
             raise Exception("No clip in slot")
         clip_name = clip_slot.clip.name
@@ -182,15 +148,7 @@ def delete_clip(song, track_index, clip_index, ctrl=None):
 def get_clip_info(song, track_index, clip_index, ctrl=None):
     """Get detailed information about a clip."""
     try:
-        if track_index < 0 or track_index >= len(song.tracks):
-            raise IndexError("Track index out of range")
-        track = song.tracks[track_index]
-        if clip_index < 0 or clip_index >= len(track.clip_slots):
-            raise IndexError("Clip index out of range")
-        clip_slot = track.clip_slots[clip_index]
-        if not clip_slot.has_clip:
-            raise Exception("No clip in slot")
-        clip = clip_slot.clip
+        _, clip = get_clip(song, track_index, clip_index)
 
         result = {
             "name": clip.name,
@@ -251,9 +209,7 @@ def get_clip_info(song, track_index, clip_index, ctrl=None):
 def duplicate_clip(song, track_index, clip_index, target_clip_index, ctrl=None):
     """Duplicate a clip to another slot on the same track."""
     try:
-        if track_index < 0 or track_index >= len(song.tracks):
-            raise IndexError("Track index out of range")
-        track = song.tracks[track_index]
+        track = get_track(song, track_index)
         if clip_index < 0 or clip_index >= len(track.clip_slots):
             raise IndexError("Source clip index out of range")
         if target_clip_index < 0 or target_clip_index >= len(track.clip_slots):
@@ -280,15 +236,7 @@ def duplicate_clip(song, track_index, clip_index, target_clip_index, ctrl=None):
 def set_clip_looping(song, track_index, clip_index, looping, ctrl=None):
     """Set the looping state of a clip."""
     try:
-        if track_index < 0 or track_index >= len(song.tracks):
-            raise IndexError("Track index out of range")
-        track = song.tracks[track_index]
-        if clip_index < 0 or clip_index >= len(track.clip_slots):
-            raise IndexError("Clip index out of range")
-        clip_slot = track.clip_slots[clip_index]
-        if not clip_slot.has_clip:
-            raise Exception("No clip in slot")
-        clip = clip_slot.clip
+        _, clip = get_clip(song, track_index, clip_index)
         clip.looping = looping
         return {
             "track_index": track_index,
@@ -304,15 +252,7 @@ def set_clip_looping(song, track_index, clip_index, looping, ctrl=None):
 def set_clip_loop_points(song, track_index, clip_index, loop_start, loop_end, ctrl=None):
     """Set the loop start and end points of a clip."""
     try:
-        if track_index < 0 or track_index >= len(song.tracks):
-            raise IndexError("Track index out of range")
-        track = song.tracks[track_index]
-        if clip_index < 0 or clip_index >= len(track.clip_slots):
-            raise IndexError("Clip index out of range")
-        clip_slot = track.clip_slots[clip_index]
-        if not clip_slot.has_clip:
-            raise Exception("No clip in slot")
-        clip = clip_slot.clip
+        _, clip = get_clip(song, track_index, clip_index)
 
         loop_start = float(loop_start)
         loop_end = float(loop_end)
@@ -343,15 +283,7 @@ def set_clip_loop_points(song, track_index, clip_index, loop_start, loop_end, ct
 def set_clip_color(song, track_index, clip_index, color_index, ctrl=None):
     """Set the color of a clip."""
     try:
-        if track_index < 0 or track_index >= len(song.tracks):
-            raise IndexError("Track index out of range")
-        track = song.tracks[track_index]
-        if clip_index < 0 or clip_index >= len(track.clip_slots):
-            raise IndexError("Clip index out of range")
-        clip_slot = track.clip_slots[clip_index]
-        if not clip_slot.has_clip:
-            raise Exception("No clip in slot")
-        clip = clip_slot.clip
+        _, clip = get_clip(song, track_index, clip_index)
         clip.color_index = color_index
         return {
             "track_index": track_index,
@@ -367,7 +299,7 @@ def set_clip_color(song, track_index, clip_index, color_index, ctrl=None):
 def crop_clip(song, track_index, clip_index, ctrl=None):
     """Trim clip to its loop region."""
     try:
-        clip = _get_clip(song, track_index, clip_index)
+        _, clip = get_clip(song, track_index, clip_index)
         if not hasattr(clip, 'crop'):
             raise Exception("clip.crop() not available in this Live version")
         clip.crop()
@@ -385,7 +317,7 @@ def crop_clip(song, track_index, clip_index, ctrl=None):
 def duplicate_clip_loop(song, track_index, clip_index, ctrl=None):
     """Double the loop content of a clip."""
     try:
-        clip = _get_clip(song, track_index, clip_index)
+        _, clip = get_clip(song, track_index, clip_index)
         if not hasattr(clip, 'duplicate_loop'):
             raise Exception("clip.duplicate_loop() not available in this Live version")
         old_length = clip.length
@@ -404,7 +336,7 @@ def duplicate_clip_loop(song, track_index, clip_index, ctrl=None):
 def set_clip_start_end(song, track_index, clip_index, start_marker, end_marker, ctrl=None):
     """Set clip start_marker and end_marker."""
     try:
-        clip = _get_clip(song, track_index, clip_index)
+        _, clip = get_clip(song, track_index, clip_index)
 
         if start_marker is not None and end_marker is not None:
             sm = float(start_marker)
@@ -453,7 +385,7 @@ def set_clip_pitch(song, track_index, clip_index, pitch_coarse=None, pitch_fine=
         pitch_fine: Cents (-50 to +50)
     """
     try:
-        clip = _get_clip(song, track_index, clip_index)
+        _, clip = get_clip(song, track_index, clip_index)
         if not clip.is_audio_clip:
             raise ValueError("Clip is not an audio clip")
         if pitch_coarse is not None:
@@ -486,7 +418,7 @@ def set_clip_launch_mode(song, track_index, clip_index, launch_mode, ctrl=None):
         launch_mode: 0=trigger, 1=gate, 2=toggle, 3=repeat
     """
     try:
-        clip = _get_clip(song, track_index, clip_index)
+        _, clip = get_clip(song, track_index, clip_index)
         launch_mode = int(launch_mode)
         if launch_mode < 0 or launch_mode > 3:
             raise ValueError(
@@ -512,7 +444,7 @@ def set_clip_launch_quantization(song, track_index, clip_index, quantization, ct
             13=thirtysecond, 14=global
     """
     try:
-        clip = _get_clip(song, track_index, clip_index)
+        _, clip = get_clip(song, track_index, clip_index)
         quantization = int(quantization)
         if quantization < 0 or quantization > 14:
             raise ValueError("Launch quantization must be 0-14")
@@ -535,7 +467,7 @@ def set_clip_legato(song, track_index, clip_index, legato, ctrl=None):
                 False = clip always starts from its start position.
     """
     try:
-        clip = _get_clip(song, track_index, clip_index)
+        _, clip = get_clip(song, track_index, clip_index)
         clip.legato = bool(legato)
         return {
             "legato": clip.legato,
@@ -554,7 +486,7 @@ def audio_to_midi(song, track_index, clip_index, conversion_type, ctrl=None):
         conversion_type: 'drums', 'harmony', or 'melody'
     """
     try:
-        clip = _get_clip(song, track_index, clip_index)
+        _, clip = get_clip(song, track_index, clip_index)
         if not clip.is_audio_clip:
             raise ValueError("Clip is not an audio clip")
         conversion_type = str(conversion_type).lower()
@@ -601,7 +533,7 @@ def duplicate_clip_region(song, track_index, clip_index,
         transposition_amount: Semitones to transpose (0 for none).
     """
     try:
-        clip = _get_clip(song, track_index, clip_index)
+        _, clip = get_clip(song, track_index, clip_index)
         if clip.is_audio_clip:
             raise ValueError("duplicate_region is only available for MIDI clips")
         clip.duplicate_region(float(region_start), float(region_length),
@@ -628,7 +560,7 @@ def move_clip_playing_pos(song, track_index, clip_index, time, ctrl=None):
         time: The time position to jump to within the clip.
     """
     try:
-        clip = _get_clip(song, track_index, clip_index)
+        _, clip = get_clip(song, track_index, clip_index)
         clip.move_playing_pos(float(time))
         return {
             "track_index": track_index,
@@ -650,7 +582,7 @@ def set_clip_grid(song, track_index, clip_index,
         grid_is_triplet: True to show grid in triplet mode, False for standard.
     """
     try:
-        clip = _get_clip(song, track_index, clip_index)
+        _, clip = get_clip(song, track_index, clip_index)
         changes = {}
         if grid_quantization is not None:
             clip.view.grid_quantization = int(grid_quantization)
@@ -669,29 +601,13 @@ def set_clip_grid(song, track_index, clip_index,
         raise
 
 
-# --- Helper ---
-
-
-def _get_clip(song, track_index, clip_index):
-    """Get clip object with validation -- raises on invalid indices or empty slot."""
-    if track_index < 0 or track_index >= len(song.tracks):
-        raise IndexError("Track index out of range")
-    track = song.tracks[track_index]
-    if clip_index < 0 or clip_index >= len(track.clip_slots):
-        raise IndexError("Clip index out of range")
-    clip_slot = track.clip_slots[clip_index]
-    if not clip_slot.has_clip:
-        raise Exception("No clip in slot")
-    return clip_slot.clip
-
-
 # --- Warp Markers ---
 
 
 def get_warp_markers(song, track_index, clip_index, ctrl=None):
     """Get the warp markers of an audio clip."""
     try:
-        clip = _get_clip(song, track_index, clip_index)
+        _, clip = get_clip(song, track_index, clip_index)
         if not clip.is_audio_clip:
             raise ValueError("Warp markers are only available on audio clips")
         markers = []
@@ -748,7 +664,7 @@ def add_warp_marker(song, track_index, clip_index, beat_time, sample_time=None, 
         sample_time: The sample position (if None, auto-calculated by Live).
     """
     try:
-        clip = _get_clip(song, track_index, clip_index)
+        _, clip = get_clip(song, track_index, clip_index)
         if not clip.is_audio_clip:
             raise ValueError("Warp markers are only available on audio clips")
         if sample_time is not None:
@@ -775,7 +691,7 @@ def move_warp_marker(song, track_index, clip_index, marker_index, beat_time, sam
         sample_time: New sample position (optional).
     """
     try:
-        clip = _get_clip(song, track_index, clip_index)
+        _, clip = get_clip(song, track_index, clip_index)
         if not clip.is_audio_clip:
             raise ValueError("Warp markers are only available on audio clips")
         if sample_time is not None:
@@ -800,7 +716,7 @@ def remove_warp_marker(song, track_index, clip_index, marker_index, ctrl=None):
         marker_index: Index of the warp marker to remove.
     """
     try:
-        clip = _get_clip(song, track_index, clip_index)
+        _, clip = get_clip(song, track_index, clip_index)
         if not clip.is_audio_clip:
             raise ValueError("Warp markers are only available on audio clips")
         clip.remove_warp_marker(int(marker_index))

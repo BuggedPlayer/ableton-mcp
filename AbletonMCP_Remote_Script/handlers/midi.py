@@ -4,6 +4,8 @@ from __future__ import absolute_import, print_function, unicode_literals
 
 import traceback
 
+from ._helpers import get_clip
+
 
 def get_clip_notes(song, track_index, clip_index, start_time, time_span, start_pitch, pitch_span, ctrl=None):
     """Get MIDI notes from a clip."""
@@ -413,15 +415,7 @@ def apply_groove(song, track_index, clip_index, groove_amount, ctrl=None):
 
 def _get_midi_clip(song, track_index, clip_index):
     """Get a MIDI clip with validation."""
-    if track_index < 0 or track_index >= len(song.tracks):
-        raise IndexError("Track index out of range")
-    track = song.tracks[track_index]
-    if clip_index < 0 or clip_index >= len(track.clip_slots):
-        raise IndexError("Clip index out of range")
-    clip_slot = track.clip_slots[clip_index]
-    if not clip_slot.has_clip:
-        raise Exception("No clip in slot")
-    clip = clip_slot.clip
+    _, clip = get_clip(song, track_index, clip_index)
     if not hasattr(clip, 'get_notes'):
         raise Exception("Clip is not a MIDI clip")
     return clip

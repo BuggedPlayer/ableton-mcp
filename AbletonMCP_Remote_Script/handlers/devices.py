@@ -2,19 +2,12 @@
 
 from __future__ import absolute_import, print_function, unicode_literals
 
+from ._helpers import get_track
+
 
 def resolve_track(song, track_index, track_type="track"):
     """Resolve a track by index and type (track, return, master)."""
-    if track_type == "return":
-        if track_index < 0 or track_index >= len(song.return_tracks):
-            raise IndexError("Return track index out of range")
-        return song.return_tracks[track_index]
-    elif track_type == "master":
-        return song.master_track
-    else:
-        if track_index < 0 or track_index >= len(song.tracks):
-            raise IndexError("Track index out of range")
-        return song.tracks[track_index]
+    return get_track(song, track_index, track_type)
 
 
 def get_device_type(device, ctrl=None):
@@ -386,9 +379,7 @@ def set_macro_value(song, track_index, device_index, macro_index, value, track_t
 
 def _get_drum_rack(song, track_index, device_index):
     """Resolve a drum rack device, raising if not found or not a drum rack."""
-    if track_index < 0 or track_index >= len(song.tracks):
-        raise IndexError("Track index out of range")
-    track = song.tracks[track_index]
+    track = get_track(song, track_index)
     if device_index < 0 or device_index >= len(track.devices):
         raise IndexError("Device index out of range")
     device = track.devices[device_index]
@@ -489,9 +480,7 @@ def copy_drum_pad(song, track_index, device_index, source_note, dest_note, ctrl=
 
 def _get_rack_device(song, track_index, device_index):
     """Resolve a rack device, raising if not a rack."""
-    if track_index < 0 or track_index >= len(song.tracks):
-        raise IndexError("Track index out of range")
-    track = song.tracks[track_index]
+    track = get_track(song, track_index)
     if device_index < 0 or device_index >= len(track.devices):
         raise IndexError("Device index out of range")
     device = track.devices[device_index]
@@ -562,9 +551,7 @@ def rack_variation_action(song, track_index, device_index, action, variation_ind
 def sliced_simpler_to_drum_rack(song, track_index, device_index, ctrl=None):
     """Convert a sliced Simpler device to a Drum Rack."""
     try:
-        if track_index < 0 or track_index >= len(song.tracks):
-            raise IndexError("Track index out of range")
-        track = song.tracks[track_index]
+        track = get_track(song, track_index)
         if device_index < 0 or device_index >= len(track.devices):
             raise IndexError("Device index out of range")
         device = track.devices[device_index]
@@ -590,9 +577,7 @@ def sliced_simpler_to_drum_rack(song, track_index, device_index, ctrl=None):
 
 def _get_compressor_device(song, track_index, device_index):
     """Resolve a Compressor device, raising if not found or not a Compressor."""
-    if track_index < 0 or track_index >= len(song.tracks):
-        raise IndexError("Track index out of range")
-    track = song.tracks[track_index]
+    track = get_track(song, track_index)
     if device_index < 0 or device_index >= len(track.devices):
         raise IndexError("Device index out of range")
     device = track.devices[device_index]
@@ -729,9 +714,7 @@ def set_compressor_sidechain(song, track_index, device_index,
 
 def _get_eq8_device(song, track_index, device_index):
     """Resolve an EQ Eight device, raising if not found or not an EQ Eight."""
-    if track_index < 0 or track_index >= len(song.tracks):
-        raise IndexError("Track index out of range")
-    track = song.tracks[track_index]
+    track = get_track(song, track_index)
     if device_index < 0 or device_index >= len(track.devices):
         raise IndexError("Device index out of range")
     device = track.devices[device_index]
@@ -818,9 +801,7 @@ def set_eq8_properties(song, track_index, device_index,
 
 def _get_hybrid_reverb_device(song, track_index, device_index):
     """Resolve a Hybrid Reverb device, raising if not found or wrong type."""
-    if track_index < 0 or track_index >= len(song.tracks):
-        raise IndexError("Track index out of range")
-    track = song.tracks[track_index]
+    track = get_track(song, track_index)
     if device_index < 0 or device_index >= len(track.devices):
         raise IndexError("Device index out of range")
     device = track.devices[device_index]
@@ -919,9 +900,7 @@ def set_hybrid_reverb_ir(song, track_index, device_index,
 
 def _get_transmute_device(song, track_index, device_index):
     """Resolve a Transmute device, raising if not found or wrong type."""
-    if track_index < 0 or track_index >= len(song.tracks):
-        raise IndexError("Track index out of range")
-    track = song.tracks[track_index]
+    track = get_track(song, track_index)
     if device_index < 0 or device_index >= len(track.devices):
         raise IndexError("Device index out of range")
     device = track.devices[device_index]
@@ -1016,9 +995,7 @@ def set_transmute_properties(song, track_index, device_index,
 
 def _get_simpler_device(song, track_index, device_index):
     """Resolve a Simpler device, raising if not found or wrong type."""
-    if track_index < 0 or track_index >= len(song.tracks):
-        raise IndexError("Track index out of range")
-    track = song.tracks[track_index]
+    track = get_track(song, track_index)
     if device_index < 0 or device_index >= len(track.devices):
         raise IndexError("Device index out of range")
     device = track.devices[device_index]
@@ -1320,9 +1297,7 @@ def control_looper(song, track_index, device_index, action, clip_slot_index=None
                 'export' (requires clip_slot_index)
     """
     try:
-        if track_index < 0 or track_index >= len(song.tracks):
-            raise IndexError("Track index out of range")
-        track = song.tracks[track_index]
+        track = get_track(song, track_index)
         if device_index < 0 or device_index >= len(track.devices):
             raise IndexError("Device index out of range")
         device = track.devices[device_index]

@@ -2,7 +2,7 @@
 
 **230 tools connecting Claude AI to Ableton Live** (+19 optional ElevenLabs voice/SFX tools)
 
-AbletonMCP gives Claude direct control over your Ableton Live session through the Model Context Protocol. Create tracks, write MIDI, design sounds, mix, automate, browse instruments, snapshot presets, and navigate deep into device chains and modulation matrices — all through natural language conversation.
+AbletonMCP gives Claude direct control over your Ableton Live session through the Model Context Protocol. Create tracks, write MIDI, design sounds, mix, automate, browse instruments, snapshot presets, and navigate deep into device chains and modulation matrices — all through natural language conversation. Wispr Flow ready
 
 ---
 

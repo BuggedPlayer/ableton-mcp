@@ -4,6 +4,8 @@ from __future__ import absolute_import, print_function, unicode_literals
 
 import traceback
 
+from ._helpers import get_track
+
 
 _BROWSER_ROOTS = (
     "instruments", "sounds", "drums", "audio_effects", "midi_effects",
@@ -134,9 +136,7 @@ def get_browser_item(song, uri, path, ctrl=None):
 def load_browser_item(song, track_index, item_uri, ctrl=None):
     """Load a browser item onto a track by URI."""
     try:
-        if track_index < 0 or track_index >= len(song.tracks):
-            raise IndexError("Track index out of range")
-        track = song.tracks[track_index]
+        track = get_track(song, track_index)
         if ctrl is None:
             raise RuntimeError("load_browser_item requires ctrl for application()")
         app = ctrl.application()
@@ -239,9 +239,7 @@ def _find_browser_item_by_name(browser, name, ctrl=None):
 def load_sample(song, track_index, sample_uri, ctrl=None):
     """Load a sample onto a track by URI or filename (with name-based fallback)."""
     try:
-        if track_index < 0 or track_index >= len(song.tracks):
-            raise IndexError("Track index out of range")
-        track = song.tracks[track_index]
+        track = get_track(song, track_index)
         if ctrl is None:
             raise RuntimeError("load_sample requires ctrl for application()")
         app = ctrl.application()

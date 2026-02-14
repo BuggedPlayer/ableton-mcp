@@ -2,6 +2,8 @@
 
 from __future__ import absolute_import, print_function, unicode_literals
 
+from ._helpers import get_scene
+
 
 def create_scene(song, index, name="", ctrl=None):
     """Create a new scene."""
@@ -22,9 +24,8 @@ def create_scene(song, index, name="", ctrl=None):
 def delete_scene(song, scene_index, ctrl=None):
     """Delete a scene from the session."""
     try:
-        if scene_index < 0 or scene_index >= len(song.scenes):
-            raise IndexError("Scene index out of range")
-        scene_name = song.scenes[scene_index].name
+        scene = get_scene(song, scene_index)
+        scene_name = scene.name
         song.delete_scene(scene_index)
         return {
             "deleted": True,
@@ -40,8 +41,7 @@ def delete_scene(song, scene_index, ctrl=None):
 def duplicate_scene(song, scene_index, ctrl=None):
     """Duplicate a scene."""
     try:
-        if scene_index < 0 or scene_index >= len(song.scenes):
-            raise IndexError("Scene index out of range")
+        get_scene(song, scene_index)
         song.duplicate_scene(scene_index)
         new_index = scene_index + 1
         return {"new_index": new_index, "name": song.scenes[new_index].name}
@@ -54,9 +54,8 @@ def duplicate_scene(song, scene_index, ctrl=None):
 def fire_scene(song, scene_index, ctrl=None):
     """Fire (launch) a scene."""
     try:
-        if scene_index < 0 or scene_index >= len(song.scenes):
-            raise IndexError("Scene index out of range")
-        song.scenes[scene_index].fire()
+        scene = get_scene(song, scene_index)
+        scene.fire()
         return {"triggered": True, "scene_index": scene_index}
     except Exception as e:
         if ctrl:
@@ -67,9 +66,8 @@ def fire_scene(song, scene_index, ctrl=None):
 def set_scene_name(song, scene_index, name, ctrl=None):
     """Set a scene's name."""
     try:
-        if scene_index < 0 or scene_index >= len(song.scenes):
-            raise IndexError("Scene index out of range")
-        song.scenes[scene_index].name = name
+        scene = get_scene(song, scene_index)
+        scene.name = name
         return {"scene_index": scene_index, "name": name}
     except Exception as e:
         if ctrl:
@@ -84,9 +82,7 @@ def set_scene_tempo(song, scene_index, tempo, ctrl=None):
         tempo: BPM value (20-999), or 0 to clear the scene tempo override.
     """
     try:
-        if scene_index < 0 or scene_index >= len(song.scenes):
-            raise IndexError("Scene index out of range")
-        scene = song.scenes[scene_index]
+        scene = get_scene(song, scene_index)
         tempo = float(tempo)
         if tempo != 0 and (tempo < 20 or tempo > 999):
             raise ValueError(

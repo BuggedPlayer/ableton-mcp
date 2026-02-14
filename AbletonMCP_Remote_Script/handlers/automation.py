@@ -4,6 +4,8 @@ from __future__ import absolute_import, print_function, unicode_literals
 
 import traceback
 
+from ._helpers import get_track, get_clip
+
 
 def _find_parameter(song, track_index, parameter_name):
     """Find a track mixer or device parameter by name."""
@@ -36,17 +38,7 @@ def _find_parameter(song, track_index, parameter_name):
 def create_clip_automation(song, track_index, clip_index, parameter_name, automation_points, ctrl=None):
     """Create automation for a parameter within a clip."""
     try:
-        if track_index < 0 or track_index >= len(song.tracks):
-            raise IndexError("Track index out of range")
-
-        # Get the clip
-        track = song.tracks[track_index]
-        if clip_index < 0 or clip_index >= len(track.clip_slots):
-            raise IndexError("Clip index out of range")
-        clip_slot = track.clip_slots[clip_index]
-        if not clip_slot.has_clip:
-            raise Exception("No clip in slot")
-        clip = clip_slot.clip
+        track, clip = get_clip(song, track_index, clip_index)
 
         # Find the parameter
         param = _find_parameter(song, track_index, parameter_name)
@@ -96,16 +88,7 @@ def create_clip_automation(song, track_index, clip_index, parameter_name, automa
 def get_clip_automation(song, track_index, clip_index, parameter_name, ctrl=None):
     """Read automation envelope from a clip."""
     try:
-        if track_index < 0 or track_index >= len(song.tracks):
-            raise IndexError("Track index out of range")
-
-        track = song.tracks[track_index]
-        if clip_index < 0 or clip_index >= len(track.clip_slots):
-            raise IndexError("Clip index out of range")
-        clip_slot = track.clip_slots[clip_index]
-        if not clip_slot.has_clip:
-            raise Exception("No clip in slot")
-        clip = clip_slot.clip
+        track, clip = get_clip(song, track_index, clip_index)
 
         param = _find_parameter(song, track_index, parameter_name)
 
@@ -150,16 +133,7 @@ def get_clip_automation(song, track_index, clip_index, parameter_name, ctrl=None
 def clear_clip_automation(song, track_index, clip_index, parameter_name, ctrl=None):
     """Clear automation for a specific parameter in a clip."""
     try:
-        if track_index < 0 or track_index >= len(song.tracks):
-            raise IndexError("Track index out of range")
-
-        track = song.tracks[track_index]
-        if clip_index < 0 or clip_index >= len(track.clip_slots):
-            raise IndexError("Clip index out of range")
-        clip_slot = track.clip_slots[clip_index]
-        if not clip_slot.has_clip:
-            raise Exception("No clip in slot")
-        clip = clip_slot.clip
+        track, clip = get_clip(song, track_index, clip_index)
 
         param = _find_parameter(song, track_index, parameter_name)
 
@@ -184,16 +158,7 @@ def clear_clip_automation(song, track_index, clip_index, parameter_name, ctrl=No
 def list_clip_automated_params(song, track_index, clip_index, ctrl=None):
     """List all parameters that have automation in a clip."""
     try:
-        if track_index < 0 or track_index >= len(song.tracks):
-            raise IndexError("Track index out of range")
-
-        track = song.tracks[track_index]
-        if clip_index < 0 or clip_index >= len(track.clip_slots):
-            raise IndexError("Clip index out of range")
-        clip_slot = track.clip_slots[clip_index]
-        if not clip_slot.has_clip:
-            raise Exception("No clip in slot")
-        clip = clip_slot.clip
+        track, clip = get_clip(song, track_index, clip_index)
 
         if not hasattr(clip, 'automation_envelope'):
             return {"automated_parameters": [], "count": 0, "reason": "Clip does not support automation envelopes"}
@@ -249,9 +214,7 @@ def create_track_automation(song, track_index, parameter_name, automation_points
     parameter.  Raises ValueError if no arrangement clip covers the target time.
     """
     try:
-        if track_index < 0 or track_index >= len(song.tracks):
-            raise IndexError("Track index out of range")
-        track = song.tracks[track_index]
+        track = get_track(song, track_index)
         parameter = _find_parameter(song, track_index, parameter_name)
 
         # Find an arrangement clip that covers the automation time range.
@@ -337,9 +300,7 @@ def clear_track_automation(song, track_index, parameter_name, start_time, end_ti
         start_time = float(start_time)
         end_time = float(end_time)
 
-        if track_index < 0 or track_index >= len(song.tracks):
-            raise IndexError("Track index out of range")
-        track = song.tracks[track_index]
+        track = get_track(song, track_index)
         parameter = _find_parameter(song, track_index, parameter_name)
 
         if end_time <= start_time:

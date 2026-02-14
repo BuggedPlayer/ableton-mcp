@@ -2,6 +2,8 @@
 
 from __future__ import absolute_import, print_function, unicode_literals
 
+from ._helpers import get_track, get_clip
+
 
 def get_session_info(song, ctrl=None):
     """Get information about the current session."""
@@ -636,18 +638,7 @@ def select_track(song, track_index, track_type="track", ctrl=None):
         track_type: 'track', 'return', or 'master'.
     """
     try:
-        if track_type == "return":
-            tracks = list(song.return_tracks)
-            if track_index < 0 or track_index >= len(tracks):
-                raise IndexError("Return track index {0} out of range".format(track_index))
-            target = tracks[track_index]
-        elif track_type == "master":
-            target = song.master_track
-        else:
-            tracks = list(song.tracks)
-            if track_index < 0 or track_index >= len(tracks):
-                raise IndexError("Track index {0} out of range".format(track_index))
-            target = tracks[track_index]
+        target = get_track(song, track_index, track_type)
         song.view.selected_track = target
         return {"selected_track": target.name, "track_type": track_type}
     except Exception as e:
@@ -664,20 +655,12 @@ def set_detail_clip(song, track_index, clip_index, ctrl=None):
         clip_index: The clip slot index.
     """
     try:
-        if track_index < 0 or track_index >= len(song.tracks):
-            raise IndexError("Track index out of range")
-        track = song.tracks[track_index]
-        clip_slots = list(track.clip_slots)
-        if clip_index < 0 or clip_index >= len(clip_slots):
-            raise IndexError("Clip index out of range")
-        clip_slot = clip_slots[clip_index]
-        if not clip_slot.has_clip:
-            raise Exception("No clip in slot {0} on track '{1}'".format(clip_index, track.name))
-        song.view.detail_clip = clip_slot.clip
+        _, clip = get_clip(song, track_index, clip_index)
+        song.view.detail_clip = clip
         return {
             "track_index": track_index,
             "clip_index": clip_index,
-            "clip_name": clip_slot.clip.name,
+            "clip_name": clip.name,
         }
     except Exception as e:
         if ctrl:

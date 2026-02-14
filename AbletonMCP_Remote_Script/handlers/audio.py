@@ -4,18 +4,12 @@ from __future__ import absolute_import, print_function, unicode_literals
 
 import traceback
 
+from ._helpers import get_track, get_clip
+
 
 def _get_audio_clip(song, track_index, clip_index):
     """Validate indices and return the audio clip, or raise."""
-    if track_index < 0 or track_index >= len(song.tracks):
-        raise IndexError("Track index out of range")
-    track = song.tracks[track_index]
-    if clip_index < 0 or clip_index >= len(track.clip_slots):
-        raise IndexError("Clip index out of range")
-    clip_slot = track.clip_slots[clip_index]
-    if not clip_slot.has_clip:
-        raise Exception("No clip in slot")
-    clip = clip_slot.clip
+    _, clip = get_clip(song, track_index, clip_index)
     if not hasattr(clip, 'is_audio_clip') or not clip.is_audio_clip:
         raise Exception("Clip is not an audio clip")
     return clip
@@ -96,10 +90,7 @@ def reverse_clip(song, track_index, clip_index, ctrl=None):
     """
     try:
         _get_audio_clip(song, track_index, clip_index)  # validates indices
-
-        if track_index < 0 or track_index >= len(song.tracks):
-            raise IndexError("Track index out of range")
-        track = song.tracks[track_index]
+        track = get_track(song, track_index)
 
         # Look for a Simpler device on the track
         for device in track.devices:
@@ -192,9 +183,7 @@ def analyze_audio_clip(song, track_index, clip_index, ctrl=None):
 def freeze_track(song, track_index, ctrl=None):
     """Freeze a track."""
     try:
-        if track_index < 0 or track_index >= len(song.tracks):
-            raise IndexError("Track index out of range")
-        track = song.tracks[track_index]
+        track = get_track(song, track_index)
 
         if getattr(track, "is_frozen", False):
             return {
@@ -226,9 +215,7 @@ def freeze_track(song, track_index, ctrl=None):
 def unfreeze_track(song, track_index, ctrl=None):
     """Unfreeze a track."""
     try:
-        if track_index < 0 or track_index >= len(song.tracks):
-            raise IndexError("Track index out of range")
-        track = song.tracks[track_index]
+        track = get_track(song, track_index)
 
         if not getattr(track, "is_frozen", False):
             return {
